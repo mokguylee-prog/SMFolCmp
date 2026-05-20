@@ -11,9 +11,9 @@ namespace SMFolCmp.Models
     public class FileItem : INotifyPropertyChanged
     {
         private CompareStatus _status;
-        public string Name { get; set; }
-        public string LeftPath { get; set; }
-        public string RightPath { get; set; }
+        public string Name { get; set; } = "";
+        public string? LeftPath { get; set; }
+        public string? RightPath { get; set; }
         public bool IsDirectory { get; set; }
         public long LeftSize { get; set; }
         public long RightSize { get; set; }

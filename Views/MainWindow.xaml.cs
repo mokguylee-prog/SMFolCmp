@@ -18,7 +18,7 @@ namespace SMFolCmp.Views
     {
         private enum FilterMode { All, Diff, Diff2 }
 
-        private string _leftFolder, _rightFolder;
+        private string? _leftFolder, _rightFolder;
         private List<FileItem> _rootItems = new();
         private ObservableCollection<FileItem> _flatItems = new();
         private FilterMode _filterMode = FilterMode.All;
@@ -29,15 +29,15 @@ namespace SMFolCmp.Views
         private const string REG_PATH = @"Software\SMFolCmp";
         private bool _isSyncingScroll = false;
         private bool _isSyncingSelection = false;
-        private ListBox _lastFocusedGrid;
+        private ListBox? _lastFocusedGrid;
         private bool _isDragSelecting = false;
         private int _dragStartIndex = -1;
         private bool _isComparing = false;
         private CancellationTokenSource? _compareCancellation;
-        private FileItem _compareToSourceItem = null;
+        private FileItem? _compareToSourceItem;
         private bool _compareToMode = false;
-        private string _compareToSourcePath = null;
-        private ListBox _compareToSourceGrid = null;
+        private string? _compareToSourcePath;
+        private ListBox? _compareToSourceGrid;
 
         private sealed class PreciseCompareCandidate
         {
@@ -46,7 +46,7 @@ namespace SMFolCmp.Views
             public required string RightPath { get; init; }
         }
 
-        public MainWindow(string leftFolder = null, string rightFolder = null)
+        public MainWindow(string? leftFolder = null, string? rightFolder = null)
         {
             InitializeComponent();
             SetWindowTitle();
@@ -235,13 +235,13 @@ namespace SMFolCmp.Views
             }
         }
 
-        private string PickFolder()
+        private string? PickFolder()
         {
             var dlg = new VistaFolderBrowserDialog { Description = "폴더를 선택하세요", UseDescriptionForTitle = true };
             return dlg.ShowDialog(this) == true ? dlg.SelectedPath : null;
         }
 
-        private async void Compare_Click(object sender, RoutedEventArgs e)
+        private async void Compare_Click(object? sender, RoutedEventArgs? e)
         {
             if (_isComparing)
             {
@@ -316,7 +316,7 @@ namespace SMFolCmp.Views
             }
         }
 
-        private void Swap_Click(object sender, RoutedEventArgs e)
+        private void Swap_Click(object? sender, RoutedEventArgs? e)
         {
             if (string.IsNullOrEmpty(_leftFolder) || string.IsNullOrEmpty(_rightFolder))
             {
@@ -372,8 +372,8 @@ namespace SMFolCmp.Views
                 cancellationToken.ThrowIfCancellationRequested();
                 bool il = le.TryGetValue(name, out var li); bool ir = re.TryGetValue(name, out var ri);
                 var item = new FileItem { Name = name, Depth = depth };
-                if (il) { item.IsDirectory = li is DirectoryInfo; item.LeftPath = li.FullName; item.LeftSize = li is FileInfo lf ? lf.Length : 0; item.LeftModified = li.LastWriteTime; }
-                if (ir) { item.IsDirectory = ri is DirectoryInfo; item.RightPath = ri.FullName; item.RightSize = ri is FileInfo rf ? rf.Length : 0; item.RightModified = ri.LastWriteTime; }
+                if (il && li is not null) { item.IsDirectory = li is DirectoryInfo; item.LeftPath = li.FullName; item.LeftSize = li is FileInfo lf ? lf.Length : 0; item.LeftModified = li.LastWriteTime; }
+                if (ir && ri is not null) { item.IsDirectory = ri is DirectoryInfo; item.RightPath = ri.FullName; item.RightSize = ri is FileInfo rf ? rf.Length : 0; item.RightModified = ri.LastWriteTime; }
                 item.Status = il && ir
                     ? (item.IsDirectory ? CompareStatus.Identical : CompareFilesByMetadata(item, preciseCandidates))
                     : il ? CompareStatus.LeftOnly : CompareStatus.RightOnly;
@@ -406,6 +406,7 @@ namespace SMFolCmp.Views
         private CompareStatus CompareFilesByMetadata(FileItem item, IList<PreciseCompareCandidate> preciseCandidates)
         {
             if (item.LeftSize != item.RightSize) return CompareStatus.Modified;
+            if (item.LeftPath is null || item.RightPath is null) return CompareStatus.Modified;
 
             preciseCandidates.Add(new PreciseCompareCandidate
             {
@@ -550,8 +551,9 @@ namespace SMFolCmp.Views
 
         private void OpenSelectedCompare()
         {
-            FileItem item = LeftGrid.SelectedItem as FileItem ?? RightGrid.SelectedItem as FileItem;
+            FileItem? item = LeftGrid.SelectedItem as FileItem ?? RightGrid.SelectedItem as FileItem;
             if (item is null || item.IsDirectory) return;
+            if (string.IsNullOrEmpty(item.LeftPath) || string.IsNullOrEmpty(item.RightPath)) return;
             new CompareWindow(item.LeftPath, item.RightPath, _leftFolder, _rightFolder) { Owner = this }.Show();
         }
 
@@ -567,12 +569,13 @@ namespace SMFolCmp.Views
             _compareToSourceGrid = GetSourceGrid();
             bool fromLeft = _compareToSourceGrid == LeftGrid;
             _compareToSourcePath = fromLeft ? item.LeftPath : item.RightPath;
+            if (string.IsNullOrEmpty(_compareToSourcePath)) return;
             _compareToMode = true;
             Mouse.OverrideCursor = Cursors.Help;
             StatusText.Text = $"Compare mode: Click a file in the {(fromLeft ? "right" : "left")} pane";
         }
 
-        public void SelectAndCompareFiles(string leftPath, string rightPath)
+        public void SelectAndCompareFiles(string? leftPath, string? rightPath)
         {
             if (string.IsNullOrEmpty(leftPath) || string.IsNullOrEmpty(rightPath)) return;
 
@@ -602,12 +605,13 @@ namespace SMFolCmp.Views
             var src = GetSourceGrid();
             bool fromLeft = src == LeftGrid;
             var items = src.SelectedItems.Cast<FileItem>().ToList();
-            string srcRoot = fromLeft ? _leftFolder : _rightFolder;
-            string dstRoot = fromLeft ? _rightFolder : _leftFolder;
+            string? srcRoot = fromLeft ? _leftFolder : _rightFolder;
+            string? dstRoot = fromLeft ? _rightFolder : _leftFolder;
+            if (string.IsNullOrEmpty(srcRoot) || string.IsNullOrEmpty(dstRoot)) return;
 
             foreach (var item in items)
             {
-                string path = fromLeft ? item.LeftPath : item.RightPath;
+                string? path = fromLeft ? item.LeftPath : item.RightPath;
                 if (path == null) continue;
                 try
                 {
@@ -742,7 +746,7 @@ namespace SMFolCmp.Views
             setupWindow.ShowDialog();
         }
 
-        private void Delete_Click(object sender, RoutedEventArgs e)
+        private void Delete_Click(object? sender, RoutedEventArgs? e)
         {
             var src = GetSourceGrid();
             bool isLeft = src == LeftGrid;
@@ -758,7 +762,7 @@ namespace SMFolCmp.Views
                 {
                     foreach (var f in files)
                     {
-                        string path = isLeft ? f.LeftPath : f.RightPath;
+                        string? path = isLeft ? f.LeftPath : f.RightPath;
                         if (path != null && File.Exists(path)) File.Delete(path);
                     }
                 }
@@ -766,7 +770,7 @@ namespace SMFolCmp.Views
 
             foreach (var d in dirs)
             {
-                string path = isLeft ? d.LeftPath : d.RightPath;
+                string? path = isLeft ? d.LeftPath : d.RightPath;
                 if (path == null || !Directory.Exists(path)) continue;
                 var dlg = new ConfirmDeleteDialog($"폴더를 삭제합니다:\n{path}");
                 dlg.Owner = this;
@@ -828,10 +832,13 @@ namespace SMFolCmp.Views
             if (e.LeftButton == MouseButtonState.Pressed)
             {
                 var listBox = sender as ListBox;
-                var item = listBox?.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
+                if (listBox is null) return;
+                var item = listBox.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
                 if (item != null)
                 {
-                    var fileItem = ((FrameworkElement)item).DataContext as FileItem;
+                    if (item is not FrameworkElement element) return;
+                    var fileItem = element.DataContext as FileItem;
+                    if (fileItem is null) return;
                     var index = listBox.Items.IndexOf(fileItem);
                     if (index >= 0)
                     {
@@ -886,10 +893,13 @@ namespace SMFolCmp.Views
             if (e.LeftButton == MouseButtonState.Pressed)
             {
                 var listBox = sender as ListBox;
-                var item = listBox?.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
+                if (listBox is null) return;
+                var item = listBox.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
                 if (item != null)
                 {
-                    var fileItem = ((FrameworkElement)item).DataContext as FileItem;
+                    if (item is not FrameworkElement element) return;
+                    var fileItem = element.DataContext as FileItem;
+                    if (fileItem is null) return;
                     var index = listBox.Items.IndexOf(fileItem);
                     if (index >= 0)
                     {
@@ -949,10 +959,11 @@ namespace SMFolCmp.Views
                 return;
             }
 
-            var item = listBox?.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
+            var item = listBox.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
             if (item != null)
             {
-                var index = listBox.Items.IndexOf(((FrameworkElement)item).DataContext);
+                if (item is not FrameworkElement element) return;
+                var index = listBox.Items.IndexOf(element.DataContext);
                 if (index >= 0)
                 {
                     int start = Math.Min(_dragStartIndex, index);
@@ -975,10 +986,11 @@ namespace SMFolCmp.Views
                 return;
             }
 
-            var item = listBox?.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
+            var item = listBox.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
             if (item != null)
             {
-                var index = listBox.Items.IndexOf(((FrameworkElement)item).DataContext);
+                if (item is not FrameworkElement element) return;
+                var index = listBox.Items.IndexOf(element.DataContext);
                 if (index >= 0)
                 {
                     int start = Math.Min(_dragStartIndex, index);
@@ -1039,19 +1051,21 @@ namespace SMFolCmp.Views
 
         private bool HandleCompareToSelection(ListBox grid)
         {
-            if (!_compareToMode || _compareToSourcePath == null || _compareToSourceGrid == null) return false;
+            var sourcePath = _compareToSourcePath;
+            var sourceGrid = _compareToSourceGrid;
+            if (!_compareToMode || sourcePath == null || sourceGrid == null) return false;
 
             var item = grid.SelectedItem as FileItem;
             if (item is null || item.IsDirectory) return false;
 
-            bool isOtherGrid = grid != _compareToSourceGrid;
+            bool isOtherGrid = grid != sourceGrid;
             if (!isOtherGrid) return false;
 
-            string targetPath = grid == LeftGrid ? item.LeftPath : item.RightPath;
+            string? targetPath = grid == LeftGrid ? item.LeftPath : item.RightPath;
             if (targetPath == null) return false;
 
-            string leftPath = _compareToSourceGrid == LeftGrid ? _compareToSourcePath : targetPath;
-            string rightPath = _compareToSourceGrid == LeftGrid ? targetPath : _compareToSourcePath;
+            string leftPath = sourceGrid == LeftGrid ? sourcePath : targetPath;
+            string rightPath = sourceGrid == LeftGrid ? targetPath : sourcePath;
 
             new CompareWindow(leftPath, rightPath) { Owner = this }.Show();
             if (_compareToSourceItem != null) _compareToSourceItem.IsCompareToSource = false;
@@ -1064,7 +1078,7 @@ namespace SMFolCmp.Views
             return true;
         }
 
-        private ScrollViewer GetScrollViewer(DependencyObject o)
+        private ScrollViewer? GetScrollViewer(DependencyObject o)
         {
             if (o is ScrollViewer sv) return sv;
             for (int i = 0; i < VisualTreeHelper.GetChildrenCount(o); i++)
@@ -1180,10 +1194,10 @@ namespace SMFolCmp.Views
         private void SetWindowTitle()
         {
             var version = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "1.0.0";
-            var exePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-            var buildDate = string.IsNullOrEmpty(exePath)
-                ? DateTime.Now.ToString("yyyy-MM-dd")
-                : System.IO.File.GetLastWriteTime(exePath).ToString("yyyy-MM-dd");
+            var exePath = Environment.ProcessPath ?? Path.Combine(AppContext.BaseDirectory, "SMFolCmp.exe");
+            var buildDate = File.Exists(exePath)
+                ? File.GetLastWriteTime(exePath).ToString("yyyy-MM-dd")
+                : DateTime.Now.ToString("yyyy-MM-dd");
             Title = $"SMFolCmp v{version} ({buildDate})";
         }
     }

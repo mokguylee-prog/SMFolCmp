@@ -4,10 +4,12 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 
@@ -97,7 +99,7 @@ namespace SMFolCmp.Views
 
     public class UndoAction
     {
-        public string OldText { get; set; }
+        public string OldText { get; set; } = "";
         public int LineIndex { get; set; }
         public bool IsLeft { get; set; }
         public bool OldIsPlaceholder { get; set; }
@@ -105,8 +107,8 @@ namespace SMFolCmp.Views
 
     public partial class CompareWindow : Window
     {
-        private string _leftPath, _rightPath;
-        private string _leftFolder, _rightFolder;
+        private string? _leftPath, _rightPath;
+        private string? _leftFolder, _rightFolder;
         private List<string> _leftLines = new(), _rightLines = new();
         private ObservableCollection<DiffLine> _leftDiff = new(), _rightDiff = new();
         private ObservableCollection<string> _leftNums = new(), _rightNums = new();
@@ -117,7 +119,34 @@ namespace SMFolCmp.Views
         private bool _syncScroll = true;
         private bool _showOnlyDiff = true;
         private Stack<UndoAction> _undoStack = new();
-        private DiffLine _selectedLineForScroll = null;
+        private bool _isDraggingDiffMap = false;
+        private bool _isDiffMapUpdateQueued = false;
+
+        private const uint MonitorDefaultToNearest = 2;
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+        [DllImport("user32.dll", CharSet = CharSet.Auto)]
+        private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MonitorInfo lpmi);
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct MonitorInfo
+        {
+            public int cbSize;
+            public NativeRect rcMonitor;
+            public NativeRect rcWork;
+            public uint dwFlags;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct NativeRect
+        {
+            public int Left;
+            public int Top;
+            public int Right;
+            public int Bottom;
+        }
 
         private sealed class FilterScrollAnchor
         {
@@ -133,7 +162,7 @@ namespace SMFolCmp.Views
         static readonly Brush BgSel = new SolidColorBrush(Color.FromArgb(120,80,140,240));
         static readonly Brush FgNorm = new SolidColorBrush(Color.FromRgb(212,212,212));
 
-        public CompareWindow(string leftPath, string rightPath, string leftFolder = null, string rightFolder = null)
+        public CompareWindow(string leftPath, string rightPath, string? leftFolder = null, string? rightFolder = null)
         {
             InitializeComponent();
             _leftPath = leftPath; _rightPath = rightPath;
@@ -144,19 +173,55 @@ namespace SMFolCmp.Views
             KeyDown += OnKey;
             Closing += OnClosing;
             Closed += (s, e) => { App.SetRegValue("LeftFile", ""); App.SetRegValue("RightFile", ""); };
+            Loaded += (_, _) => EnsureWindowFitsWorkArea();
             LoadAndDiff();
             UpdateTitles();
+        }
+
+        private void EnsureWindowFitsWorkArea()
+        {
+            var workArea = GetCurrentMonitorWorkArea();
+
+            if (Width > workArea.Width) Width = workArea.Width;
+            if (Height > workArea.Height) Height = workArea.Height;
+
+            if (Left < workArea.Left) Left = workArea.Left;
+            if (Top < workArea.Top) Top = workArea.Top;
+            if (Left + ActualWidth > workArea.Right) Left = Math.Max(workArea.Left, workArea.Right - ActualWidth);
+            if (Top + ActualHeight > workArea.Bottom) Top = Math.Max(workArea.Top, workArea.Bottom - ActualHeight);
+        }
+
+        private Rect GetCurrentMonitorWorkArea()
+        {
+            var handle = new WindowInteropHelper(this).Handle;
+            if (handle == IntPtr.Zero) return SystemParameters.WorkArea;
+
+            var monitor = MonitorFromWindow(handle, MonitorDefaultToNearest);
+            var info = new MonitorInfo { cbSize = Marshal.SizeOf<MonitorInfo>() };
+            if (monitor == IntPtr.Zero || !GetMonitorInfo(monitor, ref info)) return SystemParameters.WorkArea;
+
+            return new Rect(
+                info.rcWork.Left,
+                info.rcWork.Top,
+                info.rcWork.Right - info.rcWork.Left,
+                info.rcWork.Bottom - info.rcWork.Top);
         }
 
         private void LoadAndDiff()
         {
             _leftLines = LoadFile(_leftPath); _rightLines = LoadFile(_rightPath);
+            RebuildDiffFromCurrentLines();
+        }
+
+        private void RebuildDiffFromCurrentLines()
+        {
             _leftDiff.Clear(); _rightDiff.Clear(); _leftNums.Clear(); _rightNums.Clear();
             var ops = DiffEngine.Compute(_leftLines, _rightLines);
             var opList = ops.ToList();
             BuildRowsFromOperations(opList);
             ApplyFilter();
             StatusBar.Text = $"Left: {_leftLines.Count} lines | Right: {_rightLines.Count} lines | Differences: {opList.Count(o=>o.Kind!=DiffKind.Equal)} items";
+            QueueUpdateDiffMap();
         }
 
         private void BuildRowsFromOperations(List<DiffOp> operations)
@@ -238,7 +303,7 @@ namespace SMFolCmp.Views
             rightDiff.RedHighlights = rightHighlights;
         }
 
-        private List<string> LoadFile(string p)
+        private List<string> LoadFile(string? p)
         {
             if (p == null || !File.Exists(p)) return new();
             var content = File.ReadAllText(p);
@@ -288,7 +353,7 @@ namespace SMFolCmp.Views
             _selStart = _selEnd = -1;
         }
 
-        private DiffLine GetDiffLineAt(MouseEventArgs e, IInputElement container)
+        private DiffLine? GetDiffLineAt(MouseEventArgs e, IInputElement container)
         {
             var pt = e.GetPosition((IInputElement)container);
             var hit = VisualTreeHelper.HitTest((Visual)container, pt);
@@ -365,7 +430,7 @@ namespace SMFolCmp.Views
             UpdateLeftFile();
         }
 
-        private void DeleteSelectedLines_Click(object sender, RoutedEventArgs e)
+        private void DeleteSelectedLines_Click(object? sender, RoutedEventArgs? e)
         {
             if (_selStart < 0) return;
             var col = _selIsLeft ? _leftDiff : _rightDiff;
@@ -381,7 +446,7 @@ namespace SMFolCmp.Views
             if (_selIsLeft) UpdateLeftFile(); else UpdateRightFile();
         }
 
-        private void InsertLine_Click(object sender, RoutedEventArgs e)
+        private void InsertLine_Click(object? sender, RoutedEventArgs? e)
         {
             if (_selStart < 0) { StatusBar.Text = "Select a line to insert above"; return; }
             var col = _selIsLeft ? _leftDiff : _rightDiff;
@@ -416,7 +481,7 @@ namespace SMFolCmp.Views
             }
         }
 
-        private void OnKey(object sender, KeyEventArgs e)
+        private void OnKey(object? sender, KeyEventArgs e)
         {
             if (e.Key == Key.F2) OpenEditDialog();
             if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control) SaveFiles();
@@ -581,6 +646,23 @@ namespace SMFolCmp.Views
             UpdateTitles();
         }
 
+        private void SwapFiles_Click(object sender, RoutedEventArgs e)
+        {
+            (_leftPath, _rightPath) = (_rightPath, _leftPath);
+            (_leftFolder, _rightFolder) = (_rightFolder, _leftFolder);
+            (_leftLines, _rightLines) = (_rightLines, _leftLines);
+            (_leftModified, _rightModified) = (_rightModified, _leftModified);
+
+            _undoStack.Clear();
+            EditBorder.Visibility = Visibility.Collapsed;
+            ClearSelection();
+            RebuildDiffFromCurrentLines();
+            UpdateTitles();
+
+            ApplySyncedVerticalOffset(0);
+            StatusBar.Text += " | Files swapped";
+        }
+
         private void FilterAll_Click(object sender, RoutedEventArgs e)
         {
             var anchor = CaptureFilterScrollAnchor();
@@ -613,6 +695,134 @@ namespace SMFolCmp.Views
             {
                 ClearSelection();
             }
+
+            QueueUpdateDiffMap();
+        }
+
+        private void QueueUpdateDiffMap()
+        {
+            if (_isDiffMapUpdateQueued) return;
+
+            _isDiffMapUpdateQueued = true;
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _isDiffMapUpdateQueued = false;
+                UpdateDiffMap();
+            }), DispatcherPriority.Loaded);
+        }
+
+        private void UpdateDiffMap()
+        {
+            DiffMapCanvas.Children.Clear();
+
+            var totalRows = Math.Max(_leftDiff.Count, _rightDiff.Count);
+            var height = DiffMapCanvas.ActualHeight;
+            var width = DiffMapCanvas.ActualWidth;
+            if (totalRows == 0 || height <= 0 || width <= 0) return;
+
+            var rowHeight = height / totalRows;
+            for (int i = 0; i < totalRows; i++)
+            {
+                var isDifference =
+                    i < _leftDiff.Count && _leftDiff[i].IsDifferenceRow ||
+                    i < _rightDiff.Count && _rightDiff[i].IsDifferenceRow;
+
+                if (!isDifference) continue;
+
+                var marker = new System.Windows.Shapes.Rectangle
+                {
+                    Width = Math.Max(4, width - 6),
+                    Height = Math.Max(2, rowHeight),
+                    Fill = new SolidColorBrush(Color.FromRgb(255, 77, 90))
+                };
+                Canvas.SetLeft(marker, 3);
+                Canvas.SetTop(marker, Math.Min(height - marker.Height, i * rowHeight));
+                DiffMapCanvas.Children.Add(marker);
+            }
+
+            var visibleRange = GetVisibleLineRange();
+            if (visibleRange.HasValue)
+            {
+                var (start, end) = visibleRange.Value;
+                var top = start * rowHeight;
+                var bottom = Math.Min(height, (end + 1) * rowHeight);
+                var viewport = new System.Windows.Shapes.Rectangle
+                {
+                    Width = Math.Max(4, width - 2),
+                    Height = Math.Max(12, bottom - top),
+                    Stroke = Brushes.White,
+                    StrokeThickness = 1,
+                    Fill = new SolidColorBrush(Color.FromArgb(70, 255, 255, 255))
+                };
+                Canvas.SetLeft(viewport, 1);
+                Canvas.SetTop(viewport, Math.Max(0, Math.Min(height - viewport.Height, top)));
+                DiffMapCanvas.Children.Add(viewport);
+            }
+        }
+
+        private (int Start, int End)? GetVisibleLineRange()
+        {
+            int? start = null;
+            int? end = null;
+
+            for (int i = 0; i < _leftDiff.Count; i++)
+            {
+                if (_leftDiff[i].RowVisibility != Visibility.Visible) continue;
+                if (LeftLines.ItemContainerGenerator.ContainerFromItem(_leftDiff[i]) is not FrameworkElement item) continue;
+
+                var top = item.TransformToAncestor(LeftScroll).Transform(new Point(0, 0)).Y;
+                var bottom = top + item.ActualHeight;
+                if (bottom < 0 || top > LeftScroll.ViewportHeight) continue;
+
+                start ??= i;
+                end = i;
+            }
+
+            if (!start.HasValue || !end.HasValue) return null;
+            return (start.Value, end.Value);
+        }
+
+        private void DiffMapCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+            => QueueUpdateDiffMap();
+
+        private void DiffMapCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _isDraggingDiffMap = true;
+            DiffMapCanvas.CaptureMouse();
+            ScrollToDiffMapPosition(e.GetPosition(DiffMapCanvas).Y);
+            e.Handled = true;
+        }
+
+        private void DiffMapCanvas_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (!_isDraggingDiffMap || e.LeftButton != MouseButtonState.Pressed) return;
+            ScrollToDiffMapPosition(e.GetPosition(DiffMapCanvas).Y);
+            e.Handled = true;
+        }
+
+        private void DiffMapCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            _isDraggingDiffMap = false;
+            DiffMapCanvas.ReleaseMouseCapture();
+            e.Handled = true;
+        }
+
+        private void ScrollToDiffMapPosition(double y)
+        {
+            var totalRows = _leftDiff.Count;
+            var height = DiffMapCanvas.ActualHeight;
+            if (totalRows == 0 || height <= 0) return;
+
+            var ratio = Math.Clamp(y / height, 0, 1);
+            var lineIndex = Math.Clamp((int)Math.Round(ratio * (totalRows - 1)), 0, totalRows - 1);
+            var targetLine = GetNearestVisibleLine(_leftDiff[lineIndex], true);
+            if (targetLine == null) return;
+
+            if (LeftLines.ItemContainerGenerator.ContainerFromItem(targetLine) is not FrameworkElement item) return;
+
+            item.BringIntoView();
+            UpdateLayout();
+            QueueUpdateDiffMap();
         }
 
         private FilterScrollAnchor? CaptureFilterScrollAnchor()
@@ -745,6 +955,7 @@ namespace SMFolCmp.Views
             LeftLineScroll.ScrollToVerticalOffset(boundedOffset);
             RightLineScroll.ScrollToVerticalOffset(boundedOffset);
             _syncScroll = true;
+            QueueUpdateDiffMap();
         }
 
         private void ScrollToLineIndex(int lineIndex, bool isLeft)
@@ -779,36 +990,6 @@ namespace SMFolCmp.Views
             }
         }
 
-        private void ScrollToSelectedLine()
-        {
-            if (_selectedLineForScroll == null) return;
-
-            var leftIndex = _leftDiff.IndexOf(_selectedLineForScroll);
-            var rightIndex = _rightDiff.IndexOf(_selectedLineForScroll);
-
-            if (leftIndex >= 0)
-            {
-                var item = LeftLines.ItemContainerGenerator.ContainerFromIndex(leftIndex) as FrameworkElement;
-                if (item != null)
-                {
-                    item.BringIntoView();
-                    double offset = LeftScroll.VerticalOffset - LeftScroll.ViewportHeight / 3;
-                    LeftScroll.ScrollToVerticalOffset(Math.Max(0, offset));
-                }
-            }
-
-            if (rightIndex >= 0)
-            {
-                var item = RightLines.ItemContainerGenerator.ContainerFromIndex(rightIndex) as FrameworkElement;
-                if (item != null)
-                {
-                    item.BringIntoView();
-                    double offset = RightScroll.VerticalOffset - RightScroll.ViewportHeight / 3;
-                    RightScroll.ScrollToVerticalOffset(Math.Max(0, offset));
-                }
-            }
-        }
-
         private void SaveFiles()
         {
             try
@@ -823,7 +1004,7 @@ namespace SMFolCmp.Views
             catch (Exception ex) { MessageBox.Show(ex.Message); }
         }
 
-        private void SaveFileWithPath(ref string targetPath, string otherPath, string targetFolder, string otherFolder, List<string> lines, bool isLeft)
+        private void SaveFileWithPath(ref string? targetPath, string? otherPath, string? targetFolder, string? otherFolder, List<string> lines, bool isLeft)
         {
             if (targetPath != null)
             {
@@ -833,7 +1014,9 @@ namespace SMFolCmp.Views
             {
                 string relativePath = Path.GetRelativePath(otherFolder, otherPath);
                 targetPath = Path.Combine(targetFolder, relativePath);
-                Directory.CreateDirectory(Path.GetDirectoryName(targetPath));
+                var directory = Path.GetDirectoryName(targetPath);
+                if (!string.IsNullOrEmpty(directory))
+                    Directory.CreateDirectory(directory);
                 File.WriteAllLines(targetPath, lines);
             }
         }
@@ -874,7 +1057,7 @@ namespace SMFolCmp.Views
             catch (Exception ex) { MessageBox.Show(ex.Message); }
         }
 
-        private void Cancel_Click(object sender, RoutedEventArgs e)
+        private void Cancel_Click(object? sender, RoutedEventArgs? e)
         {
             _undoStack.Clear();
             LoadAndDiff();
@@ -883,7 +1066,7 @@ namespace SMFolCmp.Views
             StatusBar.Text = "Changes discarded. Files reloaded.";
         }
 
-        private void OnClosing(object sender, System.ComponentModel.CancelEventArgs e)
+        private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
             bool wasModified = _leftModified || _rightModified;
             if (!wasModified) return;
@@ -906,15 +1089,15 @@ namespace SMFolCmp.Views
         }
 
         private void LeftScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
-        { if (!_syncScroll) return; _syncScroll=false; RightScroll.ScrollToVerticalOffset(e.VerticalOffset); LeftLineScroll.ScrollToVerticalOffset(e.VerticalOffset); _syncScroll=true; }
+        { if (!_syncScroll) return; _syncScroll=false; RightScroll.ScrollToVerticalOffset(e.VerticalOffset); LeftLineScroll.ScrollToVerticalOffset(e.VerticalOffset); RightLineScroll.ScrollToVerticalOffset(e.VerticalOffset); _syncScroll=true; QueueUpdateDiffMap(); }
 
         private void RightScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
-        { if (!_syncScroll) return; _syncScroll=false; LeftScroll.ScrollToVerticalOffset(e.VerticalOffset); RightLineScroll.ScrollToVerticalOffset(e.VerticalOffset); _syncScroll=true; }
+        { if (!_syncScroll) return; _syncScroll=false; LeftScroll.ScrollToVerticalOffset(e.VerticalOffset); LeftLineScroll.ScrollToVerticalOffset(e.VerticalOffset); RightLineScroll.ScrollToVerticalOffset(e.VerticalOffset); _syncScroll=true; QueueUpdateDiffMap(); }
     }
 
     public partial class EditLineDialog : Window
     {
-        public string Result { get; private set; }
+        public string Result { get; private set; } = "";
         public EditLineDialog(string cur)
         {
             Title="Edit Line (F2)"; Width=700; Height=150; WindowStartupLocation=WindowStartupLocation.CenterOwner;

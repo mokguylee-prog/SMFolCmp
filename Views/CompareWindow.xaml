@@ -21,7 +21,7 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="40"/><ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="40"/><ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
                 <!-- Left side buttons -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
@@ -31,6 +31,7 @@
                     <Button Content="⬇ Insert" Click="InsertLine_Click" Padding="10,4" Margin="4,0" Background="#9B59B6" Foreground="White" BorderThickness="0" Cursor="Hand" FontSize="12"/>
                     <Button x:Name="SaveLeftBtn" Content="💾 Save Left" Click="SaveLeft_Click" Padding="10,4" Margin="4,0" Background="#FF8C42" Foreground="White" BorderThickness="0" Cursor="Hand" FontSize="12"/>
                 </StackPanel>
+                <Button Grid.Column="2" Content="SWAP" Click="SwapFiles_Click" Padding="10,4" Margin="8,0" Background="#4ECDC4" Foreground="#1E1E2E" BorderThickness="0" Cursor="Hand" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 <!-- Right side buttons -->
                 <StackPanel Grid.Column="3" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                     <Button Content="← Copy to Left" Click="CopySelectionToLeft_Click" Padding="10,4" Margin="4,0" Background="#27AE60" Foreground="White" BorderThickness="0" Cursor="Hand" FontSize="12"/>
@@ -42,17 +43,21 @@
         </Border>
         <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="24"/>
                 <ColumnDefinition Width="40"/><ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="40"/><ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <ScrollViewer x:Name="LeftLineScroll" Grid.Column="0" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Hidden" Background="#252535">
+            <Border Grid.Column="0" Background="#202030" BorderBrush="#3E3E42" BorderThickness="0,0,1,0">
+                <Canvas x:Name="DiffMapCanvas" Cursor="Hand" ClipToBounds="True" SizeChanged="DiffMapCanvas_SizeChanged" MouseLeftButtonDown="DiffMapCanvas_MouseLeftButtonDown" MouseMove="DiffMapCanvas_MouseMove" MouseLeftButtonUp="DiffMapCanvas_MouseLeftButtonUp"/>
+            </Border>
+            <ScrollViewer x:Name="LeftLineScroll" Grid.Column="1" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Hidden" Background="#252535">
                 <ItemsControl x:Name="LeftLineNumbers" Background="Transparent">
                     <ItemsControl.ItemTemplate><DataTemplate>
                         <TextBlock Text="{Binding LineNumber}" Width="38" TextAlignment="Right" Padding="0,1,4,1" FontFamily="Consolas" FontSize="13" Foreground="#666" Visibility="{Binding RowVisibility}"/>
                     </DataTemplate></ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
-            <ScrollViewer x:Name="LeftScroll" Grid.Column="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ScrollChanged="LeftScroll_ScrollChanged" Background="#1E1E2E" PreviewMouseLeftButtonDown="LeftScroll_PreDown" PreviewMouseMove="LeftScroll_PreMove" PreviewMouseLeftButtonUp="LeftScroll_PreUp">
+            <ScrollViewer x:Name="LeftScroll" Grid.Column="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ScrollChanged="LeftScroll_ScrollChanged" Background="#1E1E2E" PreviewMouseLeftButtonDown="LeftScroll_PreDown" PreviewMouseMove="LeftScroll_PreMove" PreviewMouseLeftButtonUp="LeftScroll_PreUp">
                 <ItemsControl x:Name="LeftLines" Background="Transparent">
                     <ItemsControl.ItemTemplate><DataTemplate>
                         <Border Background="{Binding Background}" Tag="{Binding}" Visibility="{Binding RowVisibility}">
@@ -68,14 +73,14 @@
                     </DataTemplate></ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
-            <ScrollViewer x:Name="RightLineScroll" Grid.Column="2" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Hidden" Background="#252535">
+            <ScrollViewer x:Name="RightLineScroll" Grid.Column="3" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Hidden" Background="#252535">
                 <ItemsControl x:Name="RightLineNumbers" Background="Transparent">
                     <ItemsControl.ItemTemplate><DataTemplate>
                         <TextBlock Text="{Binding LineNumber}" Width="38" TextAlignment="Right" Padding="0,1,4,1" FontFamily="Consolas" FontSize="13" Foreground="#666" Visibility="{Binding RowVisibility}"/>
                     </DataTemplate></ItemsControl.ItemTemplate>
                 </ItemsControl>
             </ScrollViewer>
-            <ScrollViewer x:Name="RightScroll" Grid.Column="3" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ScrollChanged="RightScroll_ScrollChanged" Background="#1E1E2E" PreviewMouseLeftButtonDown="RightScroll_PreDown" PreviewMouseMove="RightScroll_PreMove" PreviewMouseLeftButtonUp="RightScroll_PreUp">
+            <ScrollViewer x:Name="RightScroll" Grid.Column="4" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" ScrollChanged="RightScroll_ScrollChanged" Background="#1E1E2E" PreviewMouseLeftButtonDown="RightScroll_PreDown" PreviewMouseMove="RightScroll_PreMove" PreviewMouseLeftButtonUp="RightScroll_PreUp">
                 <ItemsControl x:Name="RightLines" Background="Transparent">
                     <ItemsControl.ItemTemplate><DataTemplate>
                         <Border Background="{Binding Background}" Tag="{Binding}" Visibility="{Binding RowVisibility}">

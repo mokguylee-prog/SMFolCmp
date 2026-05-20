@@ -8,7 +8,7 @@ namespace SMFolCmp.Views
     {
         private string _exePath;
 
-        public SetupWindow(string exePath = null)
+        public SetupWindow(string? exePath = null)
         {
             InitializeComponent();
             _exePath = exePath ?? System.AppContext.BaseDirectory.TrimEnd('\\') + "\\SMFolCmp.exe";
