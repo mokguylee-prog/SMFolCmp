@@ -105,6 +105,7 @@ namespace SMFolCmp.Views
         public bool OldIsPlaceholder { get; set; }
     }
 
+    // 텍스트 파일 라인별 비교 창
     public partial class CompareWindow : Window
     {
         private string? _leftPath, _rightPath;
@@ -162,6 +163,7 @@ namespace SMFolCmp.Views
         static readonly Brush BgSel = new SolidColorBrush(Color.FromArgb(120,80,140,240));
         static readonly Brush FgNorm = new SolidColorBrush(Color.FromRgb(212,212,212));
 
+        // 생성자: 두 파일 경로로 비교창 초기화
         public CompareWindow(string leftPath, string rightPath, string? leftFolder = null, string? rightFolder = null)
         {
             InitializeComponent();
@@ -178,8 +180,11 @@ namespace SMFolCmp.Views
             UpdateTitles();
         }
 
+        // 창 크기를 모니터 작업 영역 내로 제한 (System.Runtime.InteropServices, System.Windows.Interop)
         private void EnsureWindowFitsWorkArea()
         {
+            if (WindowState == WindowState.Maximized) return;
+
             var workArea = GetCurrentMonitorWorkArea();
 
             if (Width > workArea.Width) Width = workArea.Width;
@@ -191,6 +196,7 @@ namespace SMFolCmp.Views
             if (Top + ActualHeight > workArea.Bottom) Top = Math.Max(workArea.Top, workArea.Bottom - ActualHeight);
         }
 
+        // 현재 모니터의 작업 영역(taskbar 제외) 반환 (System.Runtime.InteropServices)
         private Rect GetCurrentMonitorWorkArea()
         {
             var handle = new WindowInteropHelper(this).Handle;
@@ -207,12 +213,14 @@ namespace SMFolCmp.Views
                 info.rcWork.Bottom - info.rcWork.Top);
         }
 
+        // 파일 로드 및 diff 알고리즘 실행 (System.IO)
         private void LoadAndDiff()
         {
             _leftLines = LoadFile(_leftPath); _rightLines = LoadFile(_rightPath);
             RebuildDiffFromCurrentLines();
         }
 
+        // 현재 라인 목록으로부터 diff 재구성 (DiffEngine LCS 알고리즘 사용)
         private void RebuildDiffFromCurrentLines()
         {
             _leftDiff.Clear(); _rightDiff.Clear(); _leftNums.Clear(); _rightNums.Clear();
@@ -224,6 +232,7 @@ namespace SMFolCmp.Views
             QueueUpdateDiffMap();
         }
 
+        // Diff 연산(Equal, Delete, Insert, Change)을 UI 라인으로 변환 (색상, 라인 번호 적용)
         private void BuildRowsFromOperations(List<DiffOp> operations)
         {
             int leftLine = 1, rightLine = 1, index = 0;
@@ -238,6 +247,7 @@ namespace SMFolCmp.Views
                     continue;
                 }
 
+                // 연속된 변경사항(Delete, Insert, Change)을 그룹화
                 var deletes = new List<string>();
                 var inserts = new List<string>();
                 while (index < operations.Count && operations[index].Kind != DiffKind.Equal)
@@ -253,6 +263,7 @@ namespace SMFolCmp.Views
                     index++;
                 }
 
+                // 좌우 행 수를 맞추기 위해 더 많은 쪽에 placeholder 추가
                 int rowCount = Math.Max(deletes.Count, inserts.Count);
                 for (int row = 0; row < rowCount; row++)
                 {
@@ -261,6 +272,7 @@ namespace SMFolCmp.Views
 
                     if (hasLeft && hasRight)
                     {
+                        // 양쪽 모두 있으면 Change: 문자 단위 차이 찾기
                         int leftIndex = _leftDiff.Count;
                         int rightIndex = _rightDiff.Count;
                         AddLine(_leftDiff, _leftNums, deletes[row], leftLine++, BgChg, true, true);
@@ -269,11 +281,13 @@ namespace SMFolCmp.Views
                     }
                     else if (hasLeft)
                     {
+                        // 왼쪽만 있으면 Delete
                         AddLine(_leftDiff, _leftNums, deletes[row], leftLine++, BgDel, true, true);
                         AddPlaceholderLine(_rightDiff, _rightNums, false);
                     }
                     else
                     {
+                        // 오른쪽만 있으면 Insert
                         AddPlaceholderLine(_leftDiff, _leftNums, true);
                         AddLine(_rightDiff, _rightNums, inserts[row], rightLine++, BgAdd, false, true);
                     }
@@ -282,12 +296,15 @@ namespace SMFolCmp.Views
         }
 
 
+        // 두 라인의 문자 단위 차이 찾기 (앞뒤에서 일치하는 부분 제외)
         private void FindCharDifferences(string left, string right, DiffLine leftDiff, DiffLine rightDiff)
         {
             if (string.IsNullOrEmpty(left) || string.IsNullOrEmpty(right)) return;
 
+            // 앞에서부터 일치하는 문자 개수
             int i = 0, j = 0;
             while (i < left.Length && i < right.Length && left[i] == right[i]) i++;
+            // 뒤에서부터 일치하는 문자 개수
             while (j < left.Length - i && j < right.Length - i && left[left.Length - 1 - j] == right[right.Length - 1 - j]) j++;
 
             int diffStartLeft = i, diffLenLeft = Math.Max(0, left.Length - i - j);
@@ -303,6 +320,7 @@ namespace SMFolCmp.Views
             rightDiff.RedHighlights = rightHighlights;
         }
 
+        // 파일을 라인 리스트로 로드 (System.IO, System.Linq)
         private List<string> LoadFile(string? p)
         {
             if (p == null || !File.Exists(p)) return new();
@@ -311,12 +329,14 @@ namespace SMFolCmp.Views
             return content.Split('\n').ToList();
         }
 
+        // 라인을 diff 컬렉션에 추가 (System.Collections.ObjectModel)
         private void AddLine(ObservableCollection<DiffLine> col, ObservableCollection<string> nums, string text, int num, Brush bg, bool isLeft, bool isDifferenceRow)
         {
             col.Add(new DiffLine { Text=text, Background=bg, OriginalBackground=bg, Foreground=FgNorm, LineIndex=col.Count, IsLeft=isLeft, IsDifferenceRow=isDifferenceRow, LineNumber=num > 0 ? num.ToString() : "" });
             nums.Add(num > 0 ? num.ToString() : "");
         }
 
+        // 빈 라인(padding)을 diff 컬렉션에 추가 (좌우 행 수 맞추기용)
         private void AddPlaceholderLine(ObservableCollection<DiffLine> col, ObservableCollection<string> nums, bool isLeft)
         {
             col.Add(new DiffLine
@@ -333,11 +353,14 @@ namespace SMFolCmp.Views
             nums.Add("");
         }
 
+        // 라인 범위 선택 업데이트 (System.Windows.Media)
         private void UpdateSelection(int start, int end, bool isLeft)
         {
+            // 기존 선택 배경색 복구
             foreach (var dl in _leftDiff.Concat(_rightDiff))
                 if (dl.Background == BgSel) dl.Background = dl.OriginalBackground;
 
+            // 새 선택 범위에 선택 색 적용
             int lo = Math.Min(start, end), hi = Math.Max(start, end);
             var col = isLeft ? _leftDiff : _rightDiff;
             for (int i = lo; i <= hi; i++)
@@ -346,6 +369,7 @@ namespace SMFolCmp.Views
             _selStart = lo; _selEnd = hi; _selIsLeft = isLeft;
         }
 
+        // 선택 초기화 (선택 색 제거)
         private void ClearSelection()
         {
             foreach (var dl in _leftDiff.Concat(_rightDiff))
@@ -353,6 +377,7 @@ namespace SMFolCmp.Views
             _selStart = _selEnd = -1;
         }
 
+        // 마우스 위치의 DiffLine 항목 찾기 (System.Windows.Media)
         private DiffLine? GetDiffLineAt(MouseEventArgs e, IInputElement container)
         {
             var pt = e.GetPosition((IInputElement)container);
@@ -366,6 +391,7 @@ namespace SMFolCmp.Views
             return null;
         }
 
+        // 왼쪽 스크롤 마우스 다운 (선택 시작) (System.Windows.Input)
         private void LeftScroll_PreDown(object sender, MouseButtonEventArgs e)
         {
             var dl = GetDiffLineAt(e, LeftScroll);
@@ -374,6 +400,7 @@ namespace SMFolCmp.Views
             UpdateSelection(dl.LineIndex, dl.LineIndex, true);
         }
 
+        // 왼쪽 스크롤 마우스 이동 (드래그 선택) (System.Windows.Input)
         private void LeftScroll_PreMove(object sender, MouseEventArgs e)
         {
             if (!_isDragging || e.LeftButton != MouseButtonState.Pressed) return;
@@ -381,8 +408,10 @@ namespace SMFolCmp.Views
             if (dl != null) UpdateSelection(_selStart, dl.LineIndex, true);
         }
 
+        // 왼쪽 스크롤 마우스 업 (드래그 선택 종료) (System.Windows.Input)
         private void LeftScroll_PreUp(object sender, MouseButtonEventArgs e) => _isDragging = false;
 
+        // 오른쪽 스크롤 마우스 다운 (선택 시작) (System.Windows.Input)
         private void RightScroll_PreDown(object sender, MouseButtonEventArgs e)
         {
             var dl = GetDiffLineAt(e, RightScroll);
@@ -391,6 +420,7 @@ namespace SMFolCmp.Views
             UpdateSelection(dl.LineIndex, dl.LineIndex, false);
         }
 
+        // 오른쪽 스크롤 마우스 이동 (드래그 선택) (System.Windows.Input)
         private void RightScroll_PreMove(object sender, MouseEventArgs e)
         {
             if (!_isDragging || e.LeftButton != MouseButtonState.Pressed) return;
@@ -398,8 +428,10 @@ namespace SMFolCmp.Views
             if (dl != null) UpdateSelection(_selStart, dl.LineIndex, false);
         }
 
+        // 오른쪽 스크롤 마우스 업 (드래그 선택 종료) (System.Windows.Input)
         private void RightScroll_PreUp(object sender, MouseButtonEventArgs e) => _isDragging = false;
 
+        // 선택된 왼쪽 라인을 오른쪽으로 복사
         private void CopySelectionToRight_Click(object sender, RoutedEventArgs e)
         {
             if (_selStart < 0 || !_selIsLeft) return;
@@ -415,6 +447,7 @@ namespace SMFolCmp.Views
             UpdateRightFile();
         }
 
+        // 선택된 오른쪽 라인을 왼쪽으로 복사
         private void CopySelectionToLeft_Click(object sender, RoutedEventArgs e)
         {
             if (_selStart < 0 || _selIsLeft) return;
@@ -430,6 +463,7 @@ namespace SMFolCmp.Views
             UpdateLeftFile();
         }
 
+        // 선택된 라인 삭제 (placeholder로 변환)
         private void DeleteSelectedLines_Click(object? sender, RoutedEventArgs? e)
         {
             if (_selStart < 0) return;
@@ -446,6 +480,7 @@ namespace SMFolCmp.Views
             if (_selIsLeft) UpdateLeftFile(); else UpdateRightFile();
         }
 
+        // 선택된 위치 위에 빈 라인 삽입
         private void InsertLine_Click(object? sender, RoutedEventArgs? e)
         {
             if (_selStart < 0) { StatusBar.Text = "Select a line to insert above"; return; }
@@ -455,12 +490,14 @@ namespace SMFolCmp.Views
             var newLine = new DiffLine { Text = "", Background = Brushes.Transparent, OriginalBackground = Brushes.Transparent, Foreground = FgNorm, LineIndex = insertIdx, IsLeft = _selIsLeft, IsDifferenceRow = true };
             col.Insert(insertIdx, newLine);
             nums.Insert(insertIdx, "");
+            // 이후 라인들의 LineIndex 재설정
             for (int i = insertIdx + 1; i < col.Count; i++)
                 col[i].LineIndex = i;
             if (_selIsLeft) UpdateLeftFile(); else UpdateRightFile();
             StatusBar.Text = "Line inserted. Press Ctrl+S to save.";
         }
 
+        // 왼쪽 컨텍스트 메뉴 열기 (필요시 선택 업데이트)
         private void LeftContextMenu_Opened(object sender, RoutedEventArgs e)
         {
             var cm = sender as ContextMenu;
@@ -471,6 +508,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 오른쪽 컨텍스트 메뉴 열기 (필요시 선택 업데이트)
         private void RightContextMenu_Opened(object sender, RoutedEventArgs e)
         {
             var cm = sender as ContextMenu;
@@ -481,6 +519,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 키보드 이벤트 처리 (F2, Ctrl+S, Ctrl+Z, Ctrl+C, Ctrl+V, Delete, Esc, Ins) (System.Windows.Input)
         private void OnKey(object? sender, KeyEventArgs e)
         {
             if (e.Key == Key.F2) OpenEditDialog();
@@ -493,6 +532,7 @@ namespace SMFolCmp.Views
             if (e.Key == Key.Insert) InsertLine_Click(null, null);
         }
 
+        // 선택된 라인 텍스트를 클립보드로 복사 (placeholder 제외) (System.Linq)
         private void CopySelectedTextToClipboard()
         {
             if (_selStart < 0) return;
@@ -509,6 +549,7 @@ namespace SMFolCmp.Views
                 Clipboard.SetText(string.Join(Environment.NewLine, selectedText));
         }
 
+        // 클립보드 텍스트를 선택된 위치에 붙여넣기 (선택 범위 치환 또는 추가)
         private void PasteClipboardText()
         {
             if (!Clipboard.ContainsText()) return;
@@ -531,6 +572,7 @@ namespace SMFolCmp.Views
             {
                 if (i < replaceCount && currentIndex < col.Count)
                 {
+                    // 기존 라인 치환
                     _undoStack.Push(new UndoAction
                     {
                         OldText = col[currentIndex].Text,
@@ -543,6 +585,7 @@ namespace SMFolCmp.Views
                 }
                 else
                 {
+                    // 새 라인 삽입
                     var newLine = new DiffLine
                     {
                         Text = pastedLines[i],
@@ -555,6 +598,7 @@ namespace SMFolCmp.Views
                     };
                     col.Insert(currentIndex, newLine);
                     nums.Insert(currentIndex, "");
+                    // 이후 라인들의 LineIndex 재설정
                     for (int j = currentIndex + 1; j < col.Count; j++)
                         col[j].LineIndex = j;
                 }
@@ -567,6 +611,7 @@ namespace SMFolCmp.Views
             StatusBar.Text = "Clipboard text pasted. Press Ctrl+S to save.";
         }
 
+        // 마지막 편집 작업 취소 (Undo 스택 사용)
         private void Undo()
         {
             if (_undoStack.Count == 0) return;
@@ -580,6 +625,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 라인 편집 다이얼로그 열기 (인라인 텍스트박스)
         private void OpenEditDialog()
         {
             if (_selStart < 0) { StatusBar.Text = "Select a line to edit"; return; }
@@ -591,6 +637,7 @@ namespace SMFolCmp.Views
             EditLineBox.SelectAll();
         }
 
+        // 편집한 라인 저장 및 diff 재계산
         private void SaveEditLine_Click(object sender, RoutedEventArgs e)
         {
             if (_selStart < 0) return;
@@ -604,6 +651,7 @@ namespace SMFolCmp.Views
             LoadAndDiff();
         }
 
+        // 편집 텍스트박스 Enter 처리 (Alt+Enter는 줄바꿈) (System.Windows.Input)
         private void EditLineBox_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             bool isEnter = e.Key == Key.Enter || e.SystemKey == Key.Enter;
@@ -620,18 +668,21 @@ namespace SMFolCmp.Views
             e.Handled = true;
         }
 
+        // 라인 편집 취소
         private void CancelEditLine_Click(object sender, RoutedEventArgs e)
         {
             EditBorder.Visibility = Visibility.Collapsed;
             StatusBar.Text = "";
         }
 
+        // 제목 표시줄 업데이트 (수정 여부 표시)
         private void UpdateTitles()
         {
             LeftTitle.Text  = (_leftModified  ? "* " : "") + (_leftPath  ?? "(Empty)");
             RightTitle.Text = (_rightModified ? "* " : "") + (_rightPath ?? "(Empty)");
         }
 
+        // 왼쪽 파일의 라인 목록 업데이트 (placeholder 제외)
         private void UpdateLeftFile()
         {
             _leftLines = _leftDiff.Where(l => !l.IsPlaceholder).Select(l => l.Text).ToList();
@@ -639,6 +690,7 @@ namespace SMFolCmp.Views
             UpdateTitles();
         }
 
+        // 오른쪽 파일의 라인 목록 업데이트 (placeholder 제외)
         private void UpdateRightFile()
         {
             _rightLines = _rightDiff.Where(l => !l.IsPlaceholder).Select(l => l.Text).ToList();
@@ -646,6 +698,7 @@ namespace SMFolCmp.Views
             UpdateTitles();
         }
 
+        // 좌우 파일 교환 및 diff 재구성
         private void SwapFiles_Click(object sender, RoutedEventArgs e)
         {
             (_leftPath, _rightPath) = (_rightPath, _leftPath);
@@ -663,6 +716,7 @@ namespace SMFolCmp.Views
             StatusBar.Text += " | Files swapped";
         }
 
+        // 필터: 전체 라인 표시
         private void FilterAll_Click(object sender, RoutedEventArgs e)
         {
             var anchor = CaptureFilterScrollAnchor();
@@ -673,6 +727,7 @@ namespace SMFolCmp.Views
             RestoreFilterScrollAnchor(anchor);
         }
 
+        // 필터: 차이나는 라인만 표시
         private void FilterDiff_Click(object sender, RoutedEventArgs e)
         {
             var anchor = CaptureFilterScrollAnchor();
@@ -683,6 +738,7 @@ namespace SMFolCmp.Views
             RestoreFilterScrollAnchor(anchor);
         }
 
+        // 필터 적용 (라인 가시성 설정, 버튼 스타일 업데이트)
         private void ApplyFilter()
         {
             foreach (var line in _leftDiff.Concat(_rightDiff))
@@ -699,6 +755,7 @@ namespace SMFolCmp.Views
             QueueUpdateDiffMap();
         }
 
+        // Diff 맵 업데이트 대기열 추가 (중복 업데이트 방지)
         private void QueueUpdateDiffMap()
         {
             if (_isDiffMapUpdateQueued) return;
@@ -711,6 +768,7 @@ namespace SMFolCmp.Views
             }), DispatcherPriority.Loaded);
         }
 
+        // Diff 맵 업데이트 (차이나는 라인을 미니맵으로 표시)
         private void UpdateDiffMap()
         {
             DiffMapCanvas.Children.Clear();
@@ -721,6 +779,7 @@ namespace SMFolCmp.Views
             if (totalRows == 0 || height <= 0 || width <= 0) return;
 
             var rowHeight = height / totalRows;
+            // 차이 마커 표시
             for (int i = 0; i < totalRows; i++)
             {
                 var isDifference =
@@ -740,6 +799,7 @@ namespace SMFolCmp.Views
                 DiffMapCanvas.Children.Add(marker);
             }
 
+            // 현재 뷰포트 표시
             var visibleRange = GetVisibleLineRange();
             if (visibleRange.HasValue)
             {
@@ -760,6 +820,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 현재 보이는 라인 범위 조회 (System.Windows.Media)
         private (int Start, int End)? GetVisibleLineRange()
         {
             int? start = null;
@@ -782,9 +843,11 @@ namespace SMFolCmp.Views
             return (start.Value, end.Value);
         }
 
+        // Diff 맵 캔버스 크기 변경 (System.Windows.Controls)
         private void DiffMapCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
             => QueueUpdateDiffMap();
 
+        // Diff 맵 클릭/드래그로 스크롤 (System.Windows.Input)
         private void DiffMapCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             _isDraggingDiffMap = true;
@@ -793,6 +856,7 @@ namespace SMFolCmp.Views
             e.Handled = true;
         }
 
+        // Diff 맵 드래그 중 스크롤 업데이트 (System.Windows.Input)
         private void DiffMapCanvas_MouseMove(object sender, MouseEventArgs e)
         {
             if (!_isDraggingDiffMap || e.LeftButton != MouseButtonState.Pressed) return;
@@ -800,6 +864,7 @@ namespace SMFolCmp.Views
             e.Handled = true;
         }
 
+        // Diff 맵 드래그 종료 (System.Windows.Input)
         private void DiffMapCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
             _isDraggingDiffMap = false;
@@ -807,6 +872,7 @@ namespace SMFolCmp.Views
             e.Handled = true;
         }
 
+        // Diff 맵 위치에 해당하는 라인으로 스크롤
         private void ScrollToDiffMapPosition(double y)
         {
             var totalRows = _leftDiff.Count;
@@ -825,8 +891,10 @@ namespace SMFolCmp.Views
             QueueUpdateDiffMap();
         }
 
+        // 필터 적용 시 스크롤 위치 고정점 저장 (선택, 마우스, 또는 상단 라인)
         private FilterScrollAnchor? CaptureFilterScrollAnchor()
         {
+            // 선택된 라인이 있으면 선택 라인 사용
             if (_selStart >= 0)
             {
                 var selectedList = _selIsLeft ? _leftDiff : _rightDiff;
@@ -843,6 +911,7 @@ namespace SMFolCmp.Views
                 }
             }
 
+            // 마우스가 왼쪽 스크롤 위에 있으면 마우스 위치의 라인 사용
             if (LeftScroll.IsMouseOver)
             {
                 var line = GetDiffLineAtMouse(LeftScroll);
@@ -850,6 +919,7 @@ namespace SMFolCmp.Views
                     return new FilterScrollAnchor { Line = line, IsLeft = true, ViewportY = Mouse.GetPosition(LeftScroll).Y };
             }
 
+            // 마우스가 오른쪽 스크롤 위에 있으면 마우스 위치의 라인 사용
             if (RightScroll.IsMouseOver)
             {
                 var line = GetDiffLineAtMouse(RightScroll);
@@ -857,9 +927,11 @@ namespace SMFolCmp.Views
                     return new FilterScrollAnchor { Line = line, IsLeft = false, ViewportY = Mouse.GetPosition(RightScroll).Y };
             }
 
+            // 그 외 상단의 보이는 라인 사용
             return CaptureTopVisibleAnchor(true) ?? CaptureTopVisibleAnchor(false);
         }
 
+        // 상단의 첫 보이는 라인 찾기 (필터 변경시 스크롤 기준점)
         private FilterScrollAnchor? CaptureTopVisibleAnchor(bool isLeft)
         {
             var diffList = isLeft ? _leftDiff : _rightDiff;
@@ -875,6 +947,7 @@ namespace SMFolCmp.Views
             return null;
         }
 
+        // 마우스 위치의 라인 찾기 (System.Windows.Media, System.Windows.Input)
         private DiffLine? GetDiffLineAtMouse(ScrollViewer scrollViewer)
         {
             var pt = Mouse.GetPosition(scrollViewer);
@@ -888,6 +961,7 @@ namespace SMFolCmp.Views
             return null;
         }
 
+        // 라인이 스크롤 뷰에서의 Y 위치 조회 (System.Windows.Media)
         private double? GetLineViewportY(DiffLine line, bool isLeft)
         {
             var scrollViewer = isLeft ? LeftScroll : RightScroll;
@@ -898,6 +972,7 @@ namespace SMFolCmp.Views
             return item.TransformToAncestor(scrollViewer).Transform(new Point(0, 0)).Y;
         }
 
+        // 저장된 스크롤 고정점 복구 (필터 변경 후)
         private void RestoreFilterScrollAnchor(FilterScrollAnchor? anchor)
         {
             if (anchor?.Line == null) return;
@@ -923,6 +998,7 @@ namespace SMFolCmp.Views
             }), DispatcherPriority.Loaded);
         }
 
+        // 주어진 라인 또는 가까운 보이는 라인 찾기 (System.Linq)
         private DiffLine? GetNearestVisibleLine(DiffLine anchorLine, bool isLeft)
         {
             if (anchorLine.RowVisibility == Visibility.Visible)
@@ -932,6 +1008,7 @@ namespace SMFolCmp.Views
             var anchorIndex = diffList.IndexOf(anchorLine);
             if (anchorIndex < 0) return diffList.FirstOrDefault(line => line.RowVisibility == Visibility.Visible);
 
+            // 원점에서 앞뒤로 확장하여 가장 가까운 보이는 라인 찾기
             for (int distance = 1; distance < diffList.Count; distance++)
             {
                 var previous = anchorIndex - distance;
@@ -946,6 +1023,7 @@ namespace SMFolCmp.Views
             return null;
         }
 
+        // 좌우 스크롤 뷰를 동기화된 오프셋으로 설정 (스크롤 동기화)
         private void ApplySyncedVerticalOffset(double offset)
         {
             var boundedOffset = Math.Max(0, offset);
@@ -958,6 +1036,7 @@ namespace SMFolCmp.Views
             QueueUpdateDiffMap();
         }
 
+        // 특정 라인으로 스크롤 (동기화 포함)
         private void ScrollToLineIndex(int lineIndex, bool isLeft)
         {
             var scrollViewer = isLeft ? LeftScroll : RightScroll;
@@ -990,6 +1069,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 두 파일 모두 저장 (Ctrl+S)
         private void SaveFiles()
         {
             try
@@ -1004,6 +1084,7 @@ namespace SMFolCmp.Views
             catch (Exception ex) { MessageBox.Show(ex.Message); }
         }
 
+        // 파일을 경로로 저장 (경로가 없으면 상대경로로 구성) (System.IO)
         private void SaveFileWithPath(ref string? targetPath, string? otherPath, string? targetFolder, string? otherFolder, List<string> lines, bool isLeft)
         {
             if (targetPath != null)
@@ -1012,6 +1093,7 @@ namespace SMFolCmp.Views
             }
             else if (otherPath != null && targetFolder != null && otherFolder != null)
             {
+                // 다른 파일의 상대경로를 이용하여 목표 경로 구성
                 string relativePath = Path.GetRelativePath(otherFolder, otherPath);
                 targetPath = Path.Combine(targetFolder, relativePath);
                 var directory = Path.GetDirectoryName(targetPath);
@@ -1021,6 +1103,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 왼쪽 파일만 저장
         private void SaveLeft_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -1039,6 +1122,7 @@ namespace SMFolCmp.Views
             catch (Exception ex) { MessageBox.Show(ex.Message); }
         }
 
+        // 오른쪽 파일만 저장
         private void SaveRight_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -1057,6 +1141,7 @@ namespace SMFolCmp.Views
             catch (Exception ex) { MessageBox.Show(ex.Message); }
         }
 
+        // 모든 변경사항 폐기 및 파일 재로드 (Esc)
         private void Cancel_Click(object? sender, RoutedEventArgs? e)
         {
             _undoStack.Clear();
@@ -1066,6 +1151,7 @@ namespace SMFolCmp.Views
             StatusBar.Text = "Changes discarded. Files reloaded.";
         }
 
+        // 창 닫기 전 저장 확인
         private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
             bool wasModified = _leftModified || _rightModified;
@@ -1088,9 +1174,11 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 왼쪽 스크롤 변경시 우측 동기화 (System.Windows.Controls)
         private void LeftScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
         { if (!_syncScroll) return; _syncScroll=false; RightScroll.ScrollToVerticalOffset(e.VerticalOffset); LeftLineScroll.ScrollToVerticalOffset(e.VerticalOffset); RightLineScroll.ScrollToVerticalOffset(e.VerticalOffset); _syncScroll=true; QueueUpdateDiffMap(); }
 
+        // 오른쪽 스크롤 변경시 좌측 동기화 (System.Windows.Controls)
         private void RightScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
         { if (!_syncScroll) return; _syncScroll=false; LeftScroll.ScrollToVerticalOffset(e.VerticalOffset); LeftLineScroll.ScrollToVerticalOffset(e.VerticalOffset); RightLineScroll.ScrollToVerticalOffset(e.VerticalOffset); _syncScroll=true; QueueUpdateDiffMap(); }
     }
@@ -1114,14 +1202,19 @@ namespace SMFolCmp.Views
     public enum DiffKind { Equal, Delete, Insert, Change }
     public record DiffOp(DiffKind Kind, string L, string R);
 
+    // 최장공통부분수열(LCS) 알고리즘으로 두 문자열 배열의 차이 계산
     public static class DiffEngine
     {
+        // 두 라인 리스트의 diff 연산 계산 (LCS 기반 Myers-style diff)
         public static List<DiffOp> Compute(List<string> left, List<string> right)
         {
             int m=left.Count, n=right.Count;
+            // LCS 테이블 구성 (뒤에서부터 앞으로)
             var lcs=new int[m+1,n+1];
             for (int i=m-1;i>=0;i--) for (int j=n-1;j>=0;j--)
                 lcs[i,j]=left[i]==right[j] ? lcs[i+1,j+1]+1 : Math.Max(lcs[i+1,j],lcs[i,j+1]);
+
+            // LCS 테이블을 따라 diff 연산 추적
             var ops=new List<DiffOp>(); int li=0,ri=0;
             while (li<m||ri<n)
             {

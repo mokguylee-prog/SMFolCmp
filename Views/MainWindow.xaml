@@ -71,7 +71,7 @@
             <Border Grid.Column="1" Background="#1A3A1A" Padding="10,8">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <Button x:Name="CompareBtn" Content="⟳ F5" Style="{StaticResource BtnStyle}" Background="#1E7E34" Click="Compare_Click" ToolTip="Refresh (F5)" Margin="0,0,8,0"/>
-                    <Button x:Name="SwapBtn" Content="⇌" Style="{StaticResource BtnStyle}" Background="#1E7E34" Click="Swap_Click" ToolTip="Swap left and right" FontSize="16"/>
+                    <Button x:Name="SwapBtn" Content="SWAP" Style="{StaticResource BtnStyle}" Background="#1E7E34" Click="Swap_Click" ToolTip="Swap left and right" FontSize="12" FontWeight="SemiBold" MinWidth="64"/>
                 </StackPanel>
             </Border>
 
@@ -90,7 +90,8 @@
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
                 <Button x:Name="FilterAllBtn" Content="All" Click="FilterAll_Click" Style="{StaticResource BtnStyle}" Background="#0E639C" Margin="0,0,8,0" Padding="16,6" FontSize="12"/>
                 <Button x:Name="FilterDiffBtn" Content="Diff" Click="FilterDiff_Click" Style="{StaticResource BtnStyle}" Background="#1177BB" Margin="0,0,8,0" Padding="16,6" FontSize="12"/>
-                <Button x:Name="FilterDiff2Btn" Content="Diff2" Click="FilterDiff2_Click" Style="{StaticResource BtnStyle}" Background="#1177BB" Margin="0,0,20,0" Padding="16,6" FontSize="12"/>
+                <Button x:Name="FilterDiff2Btn" Content="Diff2" Click="FilterDiff2_Click" Style="{StaticResource BtnStyle}" Background="#1177BB" Margin="0,0,8,0" Padding="16,6" FontSize="12"/>
+                <Button x:Name="FilterSameBtn" Content="Same" Click="FilterSame_Click" Style="{StaticResource BtnStyle}" Background="#1177BB" Margin="0,0,20,0" Padding="16,6" FontSize="12"/>
 
                 <TextBlock Text="파일배제:" Foreground="#E0E0E0" VerticalAlignment="Center" Margin="0,0,5,0" FontSize="11"/>
                 <TextBox x:Name="ExcludeFilePatternsBox" Width="180" Height="28" Background="#3C3C3C" Foreground="#E0E0E0" BorderBrush="#3E3E42" BorderThickness="1" Padding="6,5" VerticalContentAlignment="Center" ToolTip="예: *.o; *.bin; *.md"/>

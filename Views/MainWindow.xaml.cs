@@ -16,7 +16,7 @@ namespace SMFolCmp.Views
 {
     public partial class MainWindow : Window
     {
-        private enum FilterMode { All, Diff, Diff2 }
+        private enum FilterMode { All, Diff, Diff2, Same }
 
         private string? _leftFolder, _rightFolder;
         private List<FileItem> _rootItems = new();
@@ -46,6 +46,7 @@ namespace SMFolCmp.Views
             public required string RightPath { get; init; }
         }
 
+        // 생성자: 폴더 경로를 초기화하고 UI 설정
         public MainWindow(string? leftFolder = null, string? rightFolder = null)
         {
             InitializeComponent();
@@ -78,6 +79,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 레지스트리에서 저장된 설정 로드 (폴더 경로, 제외 패턴)
         private void LoadConfig()
         {
             string leftFolder = GetRegValue("LeftFolder", "");
@@ -106,6 +108,7 @@ namespace SMFolCmp.Views
             ParsePatterns();
         }
 
+        // 현재 설정을 레지스트리에 저장 (System.Windows.Input)
         private void SaveConfig()
         {
             SetRegValue("LeftFolder", _leftFolder ?? "");
@@ -114,6 +117,7 @@ namespace SMFolCmp.Views
             SetRegValue("ExcludeFolderPatterns", _excludeFolderPatterns ?? "");
         }
 
+        // 레지스트리에서 값 읽기 (Microsoft.Win32)
         private string GetRegValue(string valueName, string defaultValue = "")
         {
             try
@@ -129,6 +133,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 레지스트리에 값 저장 (Microsoft.Win32)
         private void SetRegValue(string valueName, string value)
         {
             try
@@ -141,6 +146,7 @@ namespace SMFolCmp.Views
             catch { }
         }
 
+        // 왼쪽 폴더 경로 설정하고 저장
         private void SetLeftFolder(string folder)
         {
             _leftFolder = folder;
@@ -149,6 +155,7 @@ namespace SMFolCmp.Views
             SaveConfig();
         }
 
+        // 오른쪽 폴더 경로 설정하고 저장
         private void SetRightFolder(string folder)
         {
             _rightFolder = folder;
@@ -157,6 +164,7 @@ namespace SMFolCmp.Views
             SaveConfig();
         }
 
+        // 왼쪽 폴더 선택 버튼 클릭 (Ookii.Dialogs.Wpf)
         private void SelectLeftFolder_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -170,6 +178,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 오른쪽 폴더 선택 버튼 클릭 (Ookii.Dialogs.Wpf)
         private void SelectRightFolder_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -183,6 +192,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 경로 상자에 파일 드래그 시작 감지 (System.Windows.Input)
         private void PathBox_PreviewDragEnter(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
@@ -192,6 +202,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 경로 상자에 파일 드래그 중 (System.Windows.Input)
         private void PathBox_PreviewDragOver(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
@@ -201,6 +212,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 왼쪽 경로 상자에 폴더 드래그 드롭 (System.IO)
         private void LeftPathBox_Drop(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
@@ -218,6 +230,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 오른쪽 경로 상자에 폴더 드래그 드롭 (System.IO)
         private void RightPathBox_Drop(object sender, DragEventArgs e)
         {
             if (e.Data.GetDataPresent(DataFormats.FileDrop))
@@ -235,12 +248,14 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 폴더 선택 대화창 표시 (Ookii.Dialogs.Wpf)
         private string? PickFolder()
         {
             var dlg = new VistaFolderBrowserDialog { Description = "폴더를 선택하세요", UseDescriptionForTitle = true };
             return dlg.ShowDialog(this) == true ? dlg.SelectedPath : null;
         }
 
+        // 두 폴더 비교 시작 (메타데이터 빠른 비교 후 파일 내용 정밀 비교) (System.Threading)
         private async void Compare_Click(object? sender, RoutedEventArgs? e)
         {
             if (_isComparing)
@@ -252,6 +267,7 @@ namespace SMFolCmp.Views
             if (string.IsNullOrEmpty(_leftFolder) || string.IsNullOrEmpty(_rightFolder))
             { MessageBox.Show("두 폴더를 모두 선택하세요", "경고", MessageBoxButton.OK, MessageBoxImage.Warning); return; }
 
+            // 확장된 폴더 상태 저장하여 비교 후 복구
             var expandedPaths = new HashSet<string>();
             foreach (var item in _flatItems)
             {
@@ -271,6 +287,7 @@ namespace SMFolCmp.Views
             bool quickResultDisplayed = false;
             try
             {
+                // 메타데이터(크기, 날짜)로 빠른 비교
                 await Task.Run(() =>
                     CompareFoldersByMetadata(_leftFolder, _rightFolder, newRootItems, preciseCandidates, 0, cancellation.Token),
                     cancellation.Token);
@@ -286,6 +303,7 @@ namespace SMFolCmp.Views
                     return;
                 }
 
+                // 정밀 비교(파일 내용) 진행률 표시
                 UpdateStatusText($" | 정밀 비교 중: 0/{preciseCandidates.Count}");
                 var progress = new Progress<int>(completed =>
                     UpdateStatusText($" | 정밀 비교 중: {completed}/{preciseCandidates.Count}"));
@@ -316,6 +334,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 좌우 폴더 교환 및 재비교
         private void Swap_Click(object? sender, RoutedEventArgs? e)
         {
             if (string.IsNullOrEmpty(_leftFolder) || string.IsNullOrEmpty(_rightFolder))
@@ -335,11 +354,13 @@ namespace SMFolCmp.Views
             Compare_Click(null, null);
         }
 
+        // 확장된 폴더 상태를 유지하며 UI 새로고침
         private void RefreshUIWithExpandedState()
         {
             Compare_Click(null, null);
         }
 
+        // 저장된 확장 상태 재귀적으로 복구
         private void RestoreExpandedStateRecursive(List<FileItem> items, HashSet<string> expandedPaths)
         {
             foreach (var item in items)
@@ -356,6 +377,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 메타데이터(크기, 수정일)로 재귀적 폴더 비교 (System.IO, System.Linq)
         private void CompareFoldersByMetadata(
             string left,
             string right,
@@ -389,6 +411,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 폴더의 파일/폴더 목록 조회 (System.IO)
         private Dictionary<string, FileSystemInfo> GetEntries(string dir, CancellationToken cancellationToken)
         {
             var d = new Dictionary<string, FileSystemInfo>(StringComparer.OrdinalIgnoreCase);
@@ -403,11 +426,13 @@ namespace SMFolCmp.Views
             return d;
         }
 
+        // 파일을 메타데이터로 비교 (정밀 비교 필요시 후보에 추가)
         private CompareStatus CompareFilesByMetadata(FileItem item, IList<PreciseCompareCandidate> preciseCandidates)
         {
             if (item.LeftSize != item.RightSize) return CompareStatus.Modified;
             if (item.LeftPath is null || item.RightPath is null) return CompareStatus.Modified;
 
+            // 크기가 같으면 정밀 비교 후보에 추가
             preciseCandidates.Add(new PreciseCompareCandidate
             {
                 Item = item,
@@ -420,6 +445,7 @@ namespace SMFolCmp.Views
                 : CompareStatus.Identical;
         }
 
+        // 파일 내용으로 정밀 비교 (System.Collections.Generic)
         private Dictionary<FileItem, CompareStatus> CompareFilesPrecisely(
             IReadOnlyCollection<PreciseCompareCandidate> candidates,
             CancellationToken cancellationToken,
@@ -439,6 +465,7 @@ namespace SMFolCmp.Views
             return statuses;
         }
 
+        // 두 파일의 내용 비교 (System.IO)
         private CompareStatus CompareFileContent(PreciseCompareCandidate candidate, CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -449,6 +476,7 @@ namespace SMFolCmp.Views
             return CompareStatus.Identical;
         }
 
+        // 두 파일의 바이너리 내용 비교 (버퍼링으로 효율화) (System.IO)
         private bool FilesHaveSameContent(string a, string b, CancellationToken cancellationToken)
         {
             const int BUF = 65536;
@@ -464,6 +492,7 @@ namespace SMFolCmp.Views
             return true;
         }
 
+        // 진행 중인 비교 작업 중지 요청 (System.Threading)
         private void RequestCompareCancellation()
         {
             if (_compareCancellation == null || _compareCancellation.IsCancellationRequested) return;
@@ -474,6 +503,7 @@ namespace SMFolCmp.Views
             StatusText.Text = "폴더 비교 중지 요청 중...";
         }
 
+        // 비교 상태 및 버튼 상태 업데이트 (System.Windows.Media)
         private void SetCompareRunningState(bool isRunning)
         {
             _isComparing = isRunning;
@@ -484,12 +514,14 @@ namespace SMFolCmp.Views
                 : Color.FromRgb(30, 126, 52));
         }
 
+        // 정밀 비교 결과 상태 반영
         private void ApplyPreciseStatuses(IReadOnlyDictionary<FileItem, CompareStatus> preciseStatuses)
         {
             foreach (var (item, status) in preciseStatuses)
                 item.Status = status;
         }
 
+        // 자식 항목 상태로부터 폴더 상태 재계산 (재귀)
         private void RecalculateFolderStatuses(IEnumerable<FileItem> items)
         {
             foreach (var item in items)
@@ -502,6 +534,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 자식 항목들의 상태로부터 폴더 상태 결정
         private CompareStatus DetermineFolderStatus(IEnumerable<FileItem> children, CompareStatus fallbackStatus)
         {
             bool hasModified = false;
@@ -529,6 +562,7 @@ namespace SMFolCmp.Views
                 : CompareStatus.Identical;
         }
 
+        // 그리드 항목 더블클릭 (폴더는 확장, 파일은 비교창 열기) (System.Windows.Input)
         private void FileGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             var grid = sender as ListBox;
@@ -547,8 +581,10 @@ namespace SMFolCmp.Views
             OpenSelectedCompare();
         }
 
+        // 비교창 열기 버튼
         private void OpenCompare_Click(object sender, RoutedEventArgs e) => OpenSelectedCompare();
 
+        // 선택된 파일의 비교창 열기
         private void OpenSelectedCompare()
         {
             FileItem? item = LeftGrid.SelectedItem as FileItem ?? RightGrid.SelectedItem as FileItem;
@@ -557,6 +593,7 @@ namespace SMFolCmp.Views
             new CompareWindow(item.LeftPath, item.RightPath, _leftFolder, _rightFolder) { Owner = this }.Show();
         }
 
+        // 다른 파일과 비교 모드 시작
         private void CompareTo_Click(object sender, RoutedEventArgs e)
         {
             var item = GetSourceGrid()?.SelectedItem as FileItem;
@@ -575,6 +612,7 @@ namespace SMFolCmp.Views
             StatusText.Text = $"Compare mode: Click a file in the {(fromLeft ? "right" : "left")} pane";
         }
 
+        // 지정된 파일을 선택하고 비교 (System.Linq)
         public void SelectAndCompareFiles(string? leftPath, string? rightPath)
         {
             if (string.IsNullOrEmpty(leftPath) || string.IsNullOrEmpty(rightPath)) return;
@@ -588,6 +626,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 폴더 확장/축소 아이콘 클릭 (System.Windows.Input)
         private void ExpandIcon_Click(object sender, MouseButtonEventArgs e)
         {
             if ((sender as FrameworkElement)?.DataContext is FileItem item && item.HasChildren)
@@ -598,8 +637,10 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 현재 포커스가 있는 그리드 반환
         private ListBox GetSourceGrid() => _lastFocusedGrid ?? LeftGrid;
 
+        // 선택된 파일/폴더를 반대쪽으로 복사 (System.IO)
         private void CopyToOpposite_Click(object sender, RoutedEventArgs e)
         {
             var src = GetSourceGrid();
@@ -630,6 +671,7 @@ namespace SMFolCmp.Views
             RefreshUIWithExpandedState();
         }
 
+        // 폴더를 재귀적으로 복사 (System.IO)
         private void CopyDirectoryRecursive(string src, string dst)
         {
             Directory.CreateDirectory(dst);
@@ -639,6 +681,7 @@ namespace SMFolCmp.Views
                 CopyDirectoryRecursive(dir, Path.Combine(dst, Path.GetFileName(dir)));
         }
 
+        // 트리 구조를 평탄화된 목록으로 재구성 (필터링, 정렬 포함)
         private void RebuildFlatList()
         {
             _flatItems.Clear();
@@ -647,6 +690,7 @@ namespace SMFolCmp.Views
                 AddFlatRecursive(roots[i], new List<bool>(), i == roots.Count - 1);
         }
 
+        // 트리 항목을 평탄 목록에 재귀적으로 추가 (들여쓰기 정보 포함)
         private void AddFlatRecursive(FileItem item, List<bool> ancestorHasNextVisibleSibling, bool isLastVisibleSibling)
         {
             item.AncestorHasNextVisibleSibling = ancestorHasNextVisibleSibling;
@@ -667,6 +711,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 필터 조건에 맞는 항목 조회 (폴더 우선, 알파벳순 정렬) (System.Linq)
         private List<FileItem> GetVisibleItems(IEnumerable<FileItem> items)
         {
             return items
@@ -676,6 +721,7 @@ namespace SMFolCmp.Views
                 .ToList();
         }
 
+        // 항목 표시 여부 결정 (제외 패턴, 필터 모드 확인)
         private bool IsItemVisible(FileItem item)
         {
             if (item.IsDirectory && IsFolderExcluded(item.Name)) return false;
@@ -688,10 +734,13 @@ namespace SMFolCmp.Views
                     || item.IsDirectory && HasMatchingDescendants(item),
                 FilterMode.Diff2 => item.Status != CompareStatus.Identical && item.Status != CompareStatus.DateOnly
                     || item.IsDirectory && HasMatchingDescendants(item),
+                FilterMode.Same => item.Status == CompareStatus.Identical
+                    || item.IsDirectory && HasMatchingDescendants(item),
                 _ => true
             };
         }
 
+        // 폴더의 자식 항목 중 필터 조건에 맞는 항목 존재 확인 (재귀)
         private bool HasMatchingDescendants(FileItem item)
         {
             foreach (var child in item.Children)
@@ -704,6 +753,7 @@ namespace SMFolCmp.Views
                     FilterMode.All => true,
                     FilterMode.Diff => child.Status != CompareStatus.Identical,
                     FilterMode.Diff2 => child.Status != CompareStatus.Identical && child.Status != CompareStatus.DateOnly,
+                    FilterMode.Same => child.Status == CompareStatus.Identical,
                     _ => true
                 };
                 if (childMatches) return true;
@@ -712,6 +762,7 @@ namespace SMFolCmp.Views
             return false;
         }
 
+        // 상태 표시줄 텍스트 업데이트 (통계 계산)
         private void UpdateStatusText(string suffix = "")
         {
             int id = 0, da = 0, mo = 0, lo = 0, ro = 0, total = 0;
@@ -720,8 +771,10 @@ namespace SMFolCmp.Views
             FilterAllBtn.Content = $"All ({total})";
             FilterDiffBtn.Content = $"Diff ({mo + da + lo + ro})";
             FilterDiff2Btn.Content = $"Diff2 ({mo + lo + ro})";
+            FilterSameBtn.Content = $"Same ({id})";
         }
 
+        // 상태별 항목 개수 재귀적 계산
         private void CountRecursive(IEnumerable<FileItem> items, ref int id, ref int da, ref int mo, ref int lo, ref int ro, ref int total)
         {
             foreach (var item in items)
@@ -740,12 +793,14 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 설정 창 열기
         private void Setup_Click(object sender, RoutedEventArgs e)
         {
             var setupWindow = new SetupWindow { Owner = this };
             setupWindow.ShowDialog();
         }
 
+        // 선택된 파일/폴더 삭제 (System.IO)
         private void Delete_Click(object? sender, RoutedEventArgs? e)
         {
             var src = GetSourceGrid();
@@ -780,6 +835,7 @@ namespace SMFolCmp.Views
             RefreshUIWithExpandedState();
         }
 
+        // 그리드 키 이벤트 (Delete, F5) (System.Windows.Input)
         private void FileGrid_KeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Delete)
@@ -795,6 +851,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 필터 버튼: 전체 항목 표시
         private void FilterAll_Click(object sender, RoutedEventArgs e)
         {
             _filterMode = FilterMode.All;
@@ -802,6 +859,7 @@ namespace SMFolCmp.Views
             RebuildFlatList();
         }
 
+        // 필터 버튼: 다른 항목 표시 (날짜만 다른 것 포함)
         private void FilterDiff_Click(object sender, RoutedEventArgs e)
         {
             _filterMode = FilterMode.Diff;
@@ -809,6 +867,7 @@ namespace SMFolCmp.Views
             RebuildFlatList();
         }
 
+        // 필터 버튼: 다른 항목 표시 (날짜만 다른 것 제외)
         private void FilterDiff2_Click(object sender, RoutedEventArgs e)
         {
             _filterMode = FilterMode.Diff2;
@@ -816,6 +875,15 @@ namespace SMFolCmp.Views
             RebuildFlatList();
         }
 
+        // 필터 버튼: 동일한 항목만 표시
+        private void FilterSame_Click(object sender, RoutedEventArgs e)
+        {
+            _filterMode = FilterMode.Same;
+            UpdateFilterButtonStyles();
+            RebuildFlatList();
+        }
+
+        // 활성 필터 버튼 스타일 업데이트 (System.Windows.Media)
         private void UpdateFilterButtonStyles()
         {
             var activeColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(52, 152, 219));
@@ -824,8 +892,10 @@ namespace SMFolCmp.Views
             FilterAllBtn.Background = _filterMode == FilterMode.All ? activeColor : inactiveColor;
             FilterDiffBtn.Background = _filterMode == FilterMode.Diff ? activeColor : inactiveColor;
             FilterDiff2Btn.Background = _filterMode == FilterMode.Diff2 ? activeColor : inactiveColor;
+            FilterSameBtn.Background = _filterMode == FilterMode.Same ? activeColor : inactiveColor;
         }
 
+        // 왼쪽 그리드 마우스 다운 (선택, 확장, Compare To 모드) (System.Windows.Input)
         private void LeftGrid_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
             _lastFocusedGrid = LeftGrid;
@@ -860,8 +930,16 @@ namespace SMFolCmp.Views
                         bool ctrlPressed = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
                         bool shiftPressed = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
 
-                        if (shiftPressed && listBox.SelectedIndex >= 0)
+                        // Ctrl/Shift 없이 폴더 클릭시 확장/축소
+                        if (fileItem.IsDirectory && fileItem.HasChildren && !ctrlPressed && !shiftPressed)
                         {
+                            _isDragSelecting = false;
+                            _dragStartIndex = -1;
+                            return;
+                        }
+                        else if (shiftPressed && listBox.SelectedIndex >= 0)
+                        {
+                            // Shift: 범위 선택
                             int start = Math.Min(listBox.SelectedIndex, index);
                             int end = Math.Max(listBox.SelectedIndex, index);
                             listBox.SelectedItems.Clear();
@@ -871,6 +949,7 @@ namespace SMFolCmp.Views
                         }
                         else if (ctrlPressed)
                         {
+                            // Ctrl: 토글 선택
                             if (listBox.SelectedItems.Contains(listBox.Items[index]))
                                 listBox.SelectedItems.Remove(listBox.Items[index]);
                             else
@@ -879,6 +958,7 @@ namespace SMFolCmp.Views
                         }
                         else
                         {
+                            // 드래그 선택 시작
                             _isDragSelecting = true;
                             _dragStartIndex = index;
                         }
@@ -887,6 +967,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 오른쪽 그리드 마우스 다운 (선택, 확장, Compare To 모드) (System.Windows.Input)
         private void RightGrid_PreviewMouseDown(object sender, MouseButtonEventArgs e)
         {
             _lastFocusedGrid = RightGrid;
@@ -921,7 +1002,13 @@ namespace SMFolCmp.Views
                         bool ctrlPressed = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
                         bool shiftPressed = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
 
-                        if (shiftPressed && listBox.SelectedIndex >= 0)
+                        if (fileItem.IsDirectory && fileItem.HasChildren && !ctrlPressed && !shiftPressed)
+                        {
+                            _isDragSelecting = false;
+                            _dragStartIndex = -1;
+                            return;
+                        }
+                        else if (shiftPressed && listBox.SelectedIndex >= 0)
                         {
                             int start = Math.Min(listBox.SelectedIndex, index);
                             int end = Math.Max(listBox.SelectedIndex, index);
@@ -948,6 +1035,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 왼쪽 그리드 마우스 이동 (드래그 선택) (System.Windows.Input)
         private void LeftGrid_PreviewMouseMove(object sender, MouseEventArgs e)
         {
             if (!_isDragSelecting || _dragStartIndex < 0) return;
@@ -975,6 +1063,7 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 오른쪽 그리드 마우스 이동 (드래그 선택) (System.Windows.Input)
         private void RightGrid_PreviewMouseMove(object sender, MouseEventArgs e)
         {
             if (!_isDragSelecting || _dragStartIndex < 0) return;
@@ -1002,9 +1091,13 @@ namespace SMFolCmp.Views
             }
         }
 
+        // 왼쪽 그리드 마우스 업 (드래그 선택 종료) (System.Windows.Input)
         private void LeftGrid_PreviewMouseUp(object sender, MouseButtonEventArgs e) => _isDragSelecting = false;
+
+        // 오른쪽 그리드 마우스 업 (드래그 선택 종료) (System.Windows.Input)
         private void RightGrid_PreviewMouseUp(object sender, MouseButtonEventArgs e) => _isDragSelecting = false;
 
+        // 컨텍스트 메뉴 표시 전 복사 방향 텍스트 업데이트
         private void Grid_ContextMenuOpening(object sender, ContextMenuEventArgs e)
         {
             bool fromLeft = GetSourceGrid() == LeftGrid;
@@ -1013,6 +1106,7 @@ namespace SMFolCmp.Views
                 copyItem.Header = fromLeft ? "→ 오른쪽으로 복사" : "← 왼쪽으로 복사";
         }
 
+        // 왼쪽 그리드 스크롤 동기화 (System.Windows.Controls)
         private void LeftGrid_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
             if (_isSyncingScroll) return;
@@ -1021,6 +1115,7 @@ namespace SMFolCmp.Views
             _isSyncingScroll = false;
         }
 
+        // 오른쪽 그리드 스크롤 동기화 (System.Windows.Controls)
         private void RightGrid_ScrollChanged(object sender, ScrollChangedEventArgs e)
         {
             if (_isSyncingScroll) return;
@@ -1029,6 +1124,7 @@ namespace SMFolCmp.Views
             _isSyncingScroll = false;
         }
 
+        // 왼쪽 그리드 선택 변경 (Compare To 모드 처리, 선택 동기화) (System.Windows.Controls)
         private void LeftGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (HandleCompareToSelection(LeftGrid)) return;
@@ -1039,6 +1135,7 @@ namespace SMFolCmp.Views
             _isSyncingSelection = false;
         }
 
+        // 오른쪽 그리드 선택 변경 (Compare To 모드 처리, 선택 동기화) (System.Windows.Controls)
         private void RightGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (HandleCompareToSelection(RightGrid)) return;
@@ -1049,6 +1146,7 @@ namespace SMFolCmp.Views
             _isSyncingSelection = false;
         }
 
+        // Compare To 모드 선택 처리 (반대편 파일 선택시 비교창 열고 모드 종료)
         private bool HandleCompareToSelection(ListBox grid)
         {
             var sourcePath = _compareToSourcePath;
@@ -1078,6 +1176,7 @@ namespace SMFolCmp.Views
             return true;
         }
 
+        // 요소 트리에서 ScrollViewer 찾기 (System.Windows.Media)
         private ScrollViewer? GetScrollViewer(DependencyObject o)
         {
             if (o is ScrollViewer sv) return sv;
@@ -1090,6 +1189,7 @@ namespace SMFolCmp.Views
             return null;
         }
 
+        // 제외 패턴 문자열을 리스트로 파싱 (System.Linq)
         private void ParsePatterns()
         {
             _filePatternsList = _excludeFilePatterns
@@ -1105,6 +1205,7 @@ namespace SMFolCmp.Views
                 .ToList();
         }
 
+        // 이름이 패턴 목록 중 하나와 일치하는지 확인
         private bool MatchesPattern(string name, List<string> patterns)
         {
             foreach (var pattern in patterns)
@@ -1115,6 +1216,7 @@ namespace SMFolCmp.Views
             return false;
         }
 
+        // 와일드카드 패턴 매칭 (* = 임의 문자, ? = 단일 문자)
         private bool WildcardMatch(string filename, string pattern)
         {
             int fileIdx = 0, patternIdx = 0;

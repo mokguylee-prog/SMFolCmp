@@ -60,6 +60,7 @@ Swift로 재구현할 경우 핵심 기능은 그대로 유지하되, Windows �
 | Diff Line | 파일 비교창에서 한쪽의 한 줄을 나타내는 모델 |
 | Placeholder | 반대편 줄 수를 맞추기 위해 시각적으로만 존재하는 빈 줄 |
 | Pending Compare | 탐색기에서 선택이 나누어 전달될 때 3초 동안 임시로 첫 항목을 저장하는 상태 |
+| Diff Overview Bar | 파일 비교창 왼쪽에 전체 파일의 차이 위치와 현재 뷰포트를 축약 표시하는 세로 미니맵 |
 
 ## 4. 애플리케이션 시작 동작
 
@@ -162,7 +163,7 @@ SMFolCmp.exe --compare-pair "<path1>" "<path2>"
 
 참고:
 
-- 폴더 비교창의 `All` / `Diff` / `Diff2` 필터 상태는 현재 저장하지 않는다.
+- 폴더 비교창의 `All` / `Diff` / `Diff2` / `Same` 필터 상태는 현재 저장하지 않는다.
 - 폴더 비교창의 파일/폴더 배제 패턴은 저장한다.
 - 파일 비교창의 기본 필터는 `Diff`다.
 
@@ -291,6 +292,7 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
    - `All`
    - `Diff`
    - `Diff2`
+   - `Same`
    - `파일배제:` 패턴 입력 + `저장`
    - `폴더배제:` 패턴 입력 + `저장`
 4. 컬럼 헤더
@@ -345,8 +347,8 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 필수 필드:
 
 - `Name`
-- `LeftPath`
-- `RightPath`
+- `LeftPath` (한쪽 전용 항목이면 `null` 가능)
+- `RightPath` (한쪽 전용 항목이면 `null` 가능)
 - `IsDirectory`
 - `LeftSize`
 - `RightSize`
@@ -366,6 +368,7 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 - `StatusText`
 - 행/텍스트/아이콘 색상
 - `TreeLineString`
+- `IsCompareToSource`
 
 표시 포맷:
 
@@ -377,6 +380,7 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 - 수정 시각: `yyyy-MM-dd HH:mm:ss`
 - 존재하지 않는 쪽의 파일명은 빈 문자열
 - 폴더 행은 한쪽이 실제로 없더라도 현재 구현상 양쪽 크기 칸 모두 `<Folder>`로 표시된다.
+- `Compare to...` 모드의 기준 항목은 좌우 행 배경이 RGB `(0,100,200)`으로 표시된다.
 
 ### 7.5 비교 상태
 
@@ -488,6 +492,11 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 - 즉 내용 변경, 왼쪽만, 오른쪽만 존재하는 항목만 차이로 본다.
 - 폴더 자신이 동일 또는 DateOnly여도 하위에 `Diff2` 표시 대상이 있으면 폴더는 표시
 
+`Same`:
+
+- `Identical` 항목만 표시
+- 폴더 자신이 동일이 아니어도 하위에 `Same` 표시 대상이 있으면 폴더는 표시
+
 파일/폴더 배제 패턴:
 
 - 패턴 문자열은 세미콜론 `;`으로 구분한다.
@@ -514,6 +523,7 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 - `All (<total>)`
 - `Diff (<modified + dateOnly + leftOnly + rightOnly>)`
 - `Diff2 (<modified + leftOnly + rightOnly>)`
+- `Same (<identical>)`
 
 ### 7.10 폴더 확장과 비교 열기
 
@@ -525,6 +535,13 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
   - `CompareWindow` 열기
 - 컨텍스트 메뉴의 `파일 비교`:
   - 파일이면 `CompareWindow` 열기
+- 컨텍스트 메뉴의 `Compare to...`:
+  - 현재 포커스된 좌우 목록의 선택 파일을 비교 기준으로 지정
+  - 기준 파일은 파란색 배경으로 표시
+  - 마우스 커서를 `Help`로 바꾸고 상태 바에 반대편 패널 선택 안내 표시
+  - 반대편 목록에서 파일을 클릭하면 기준 파일과 대상 파일로 `CompareWindow` 열기
+  - 같은 패널을 다시 선택하거나 폴더를 선택하면 비교창을 열지 않는다.
+  - 비교가 시작되면 기준 표시, `Compare to...` 모드, 커서 상태를 해제한다.
 
 한쪽에만 존재하는 파일도 비교창을 열 수 있다.
 
@@ -599,9 +616,9 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 - 제목: `File Compare`
 - 크기: `1400 x 900`
 - 시작 위치: owner 중앙
+- 로드 후 현재 모니터 작업영역 안으로 위치와 크기 보정
 - 좌우 파일명은 상단에 표시
-- 수정된 파일명 앞에는 `* ` 추가
-- 좌우 중 하나라도 수정되면 양쪽 제목 모두에 `* ` 표시
+- 수정된 쪽의 파일명 앞에만 `* ` 표시
 
 ### 8.2 화면 구조
 
@@ -618,12 +635,15 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
      - `Copy to Right`
      - `Insert`
      - `Save Left`
+   - 가운데:
+     - `SWAP`
    - 우측:
      - `Copy to Left`
      - `Insert`
      - `Save Right`
      - `Undo (ESC)`
 3. 본문
+   - diff overview bar
    - 왼쪽 줄 번호
    - 왼쪽 본문
    - 오른쪽 줄 번호
@@ -706,7 +726,14 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
   - Equal 행은 UI에서 숨기지만 내부 데이터에서는 유지
 - `All` 모드:
   - 모든 행 보임
-- 필터 전환 시 선택 상태는 해제
+- 필터 전환 시 기존 선택 상태는 유지한다.
+- 필터 전환 시 화면 위치는 선택 줄 또는 마우스 위치 기준으로 보정한다.
+- 앵커 우선순위:
+  1. 선택된 줄이 있으면 선택 시작 줄
+  2. 마우스가 왼쪽 본문 위에 있으면 마우스 아래 줄
+  3. 마우스가 오른쪽 본문 위에 있으면 마우스 아래 줄
+  4. 그 외 현재 화면에 보이는 첫 줄
+- 앵커 줄이 `Diff` 모드에서 숨겨지면 가장 가까운 표시 가능 줄을 대신 사용한다.
 
 초기 로드 직후 상태 바:
 
@@ -922,8 +949,47 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 - 왼쪽 본문 스크롤 시:
   - 오른쪽 본문
   - 왼쪽 줄 번호
+  - 오른쪽 줄 번호
   를 같은 vertical offset으로 동기화
 - 오른쪽 본문도 반대 방향으로 동일
+
+### 8.19 파일 위치 Swap
+
+- 도구 모음 가운데 `SWAP` 버튼을 제공한다.
+- 누르면 다음 값을 좌우 교환한다.
+  - `_leftPath`, `_rightPath`
+  - `_leftFolder`, `_rightFolder`
+  - 현재 메모리에 로드된 `_leftLines`, `_rightLines`
+  - `_leftModified`, `_rightModified`
+- 교환 후:
+  - undo 스택 비움
+  - 편집 패널 닫기
+  - 선택 상태 해제
+  - 현재 메모리 라인 기준으로 diff 재계산
+  - 제목 갱신
+  - 스크롤을 맨 위로 이동
+  - 상태 바 끝에 `Files swapped` 표시
+- 저장 전 편집 내용이 있어도 디스크에서 다시 읽지 않고 현재 메모리 내용을 기준으로 좌우 위치만 바꾼다.
+
+### 8.20 Diff Overview Bar
+
+- 파일 비교 본문 가장 왼쪽에 폭 24px 세로 diff overview bar를 표시한다.
+- 전체 diff 행 수를 캔버스 높이에 비례시켜 축약 표시한다.
+- `IsDifferenceRow = true`인 행은 빨간색 마커로 표시한다.
+- 현재 화면에 보이는 줄 범위는 흰색 테두리와 반투명 흰색 채움 사각형으로 표시한다.
+- diff overview bar는 `All` / `Diff` 필터 상태와 무관하게 전체 diff 행 기준으로 차이 위치를 보여준다.
+- 캔버스 크기 변경, diff 재계산, 필터 변경, 스크롤 변경 시 다시 그린다.
+- 클릭 또는 드래그:
+  - 클릭 Y 좌표를 전체 행 인덱스로 환산
+  - 해당 행이 현재 필터에서 숨겨져 있으면 가장 가까운 표시 가능 행으로 이동
+  - 대상 행을 `BringIntoView()`로 스크롤
+
+### 8.21 창 위치 보정
+
+- 파일 비교창은 `CenterOwner`로 열리지만, 로드 후 현재 모니터의 작업영역 안에 들어오도록 위치를 보정한다.
+- 창이 모니터 작업영역보다 크면 `Width`, `Height`를 작업영역 크기 이하로 줄인다.
+- `Left`, `Top`, `Right`, `Bottom`이 작업영역 밖으로 나가면 작업영역 안쪽으로 클램프한다.
+- 이 보정은 폴더 비교창 위치 때문에 파일 비교창 타이틀바가 모니터 상단 밖으로 올라가는 경우를 방지한다.
 
 ## 9. 키보드 조작 요약
 
@@ -933,6 +999,7 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 | --- | --- |
 | `F5` | 대기 중에는 폴더 재비교, 비교 중에는 중지 요청 |
 | `Delete` | 선택 항목 삭제 |
+| `Compare to...` 모드 중 파일 클릭 | 반대편 파일과 임의 비교 |
 
 ### 파일 비교창
 
@@ -948,6 +1015,7 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 | `Esc` | 전체 변경 취소 및 재로드 |
 | 편집 중 `Enter` | 편집 적용 |
 | 편집 중 `Alt + Enter` | 줄바꿈 삽입 |
+| diff overview bar 클릭/드래그 | 전체 파일 위치 기준으로 빠른 스크롤 |
 
 ## 10. 상태 유지와 갱신
 
@@ -962,6 +1030,8 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 - `All` / `Diff` 상태 저장
 - 파일 저장 후 즉시 재비교
 - 복사, 삭제, 삽입, 편집, 붙여넣기 시 modified 플래그 반영
+- `All` / `Diff` 전환 시 마우스 위치 또는 선택 줄 기준으로 화면 위치 보정
+- 파일 비교창 닫기 시 `LeftFile`, `RightFile` 레지스트리 값은 빈 문자열로 초기화
 
 ## 11. 빌드와 배포
 
@@ -977,6 +1047,7 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 - 기존 publish 폴더 제거
 - 산출물을 `D:\utils\SMFolCmp`로 복사
 - 완료 후 `SMFolCmp.exe` 실행
+- 폴더 비교창 제목의 빌드 날짜는 `Environment.ProcessPath`를 우선 사용하고, 없으면 `AppContext.BaseDirectory` 아래 `SMFolCmp.exe` 경로를 사용한다.
 
 ## 12. 현재 구현의 주의점과 동일 재현 포인트
 
@@ -998,16 +1069,22 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 14. 파일 비교창의 Insert와 붙여넣기 추가 행은 저장 후 재비교 전까지 반대편 placeholder를 자동 생성하지 않는다.
 15. `Ctrl + Z`는 삽입 행 삭제 undo까지 완전하게 지원하지 않는다.
 16. 단일 파일 비교창 생성자에 한쪽 경로가 `null`로 들어와도 빈 파일과 비교하는 방식으로 열린다.
-17. single-file publish 환경에서는 `Assembly.Location`이 비어 있을 수 있어, 폴더 비교창 제목의 날짜가 실제 빌드 날짜 대신 현재 날짜로 보일 수 있다.
+17. single-file publish 환경을 고려해 폴더 비교창 제목의 날짜는 `Assembly.Location` 대신 실행 프로세스 경로 기반으로 계산한다.
 18. 복사/삭제 후 비교 재실행 시 이전 확장 상태를 저장했던 폴더들을 자동 복원한다.
 19. 폴더 비교는 메타데이터 기반 1차 결과를 먼저 보여주고, 같은 크기 파일의 실제 내용 비교는 2차로 수행한다.
 20. 2차 정밀 비교 중 중지하면 1차 빠른 비교 결과만 남길 수 있다.
 21. `Diff2`는 `DateOnly`를 차이에서 제외하고 내용 변경/좌우 전용만 보여준다.
+21-1. `Same`은 `Identical` 항목만 보여주며, 동일 항목을 포함한 부모 폴더도 표시한다.
 22. 파일/폴더 배제 패턴은 화면 표시용 필터이며 상태 카운트와 내부 비교 트리에는 계속 포함된다.
 23. 경로 영역 드래그 앤 드롭은 첫 번째 드롭 항목이 폴더일 때만 좌우 폴더로 반영한다.
 24. `DiffLine` 클래스는 `INotifyPropertyChanged` 구현으로 UI 바인딩 지원한다.
 25. 드래그 선택 중 마우스가 범위를 벗어나면 `OriginalBackground`로 선택을 복원한다.
-26. 파일 비교창의 수정 플래그는 좌우 중 하나라도 변경되면 양쪽 제목 모두에 `*` 표시한다.
+26. 파일 비교창의 수정 플래그는 변경된 쪽 제목에만 `*` 표시한다.
+27. 파일 비교창의 `SWAP`은 파일을 다시 읽지 않고 현재 메모리 라인, 경로, 수정 상태를 좌우 교환한다.
+28. 파일 비교창의 diff overview bar는 필터 상태와 무관하게 전체 diff 행 기준 차이 위치를 보여준다.
+29. 파일 비교창의 `All` / `Diff` 전환은 단순 offset 유지가 아니라 선택 줄 또는 마우스 아래 줄을 앵커로 스크롤을 보정한다.
+30. 파일 비교창은 로드 후 현재 모니터 작업영역 안으로 위치와 크기를 보정한다.
+31. 폴더 비교창의 `Compare to...`는 선택한 기준 파일과 반대편 임의 파일을 직접 비교하는 모드다.
 
 ## 13. 재구현 완료 판정 체크리스트
 
@@ -1020,7 +1097,7 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 - [ ] 폴더 우선 정렬
 - [ ] 트리 확장/접기
 - [ ] 트리 연결선 정확성
-- [ ] All / Diff / Diff2 필터
+- [ ] All / Diff / Diff2 / Same 필터
 - [ ] 파일/폴더 배제 패턴 저장 및 표시 필터
 - [ ] 경로 영역 폴더 드래그 앤 드롭
 - [ ] 좌우 폴더 Swap
@@ -1033,6 +1110,7 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 - [ ] 복사/삭제 후 UI 자동 새로고침
 - [ ] 확장된 폴더 경로 자동 복원
 - [ ] 파일 비교창 열기
+- [ ] `Compare to...` 기준 파일 지정 및 반대편 임의 파일 비교
 
 ### 13.2 파일 비교
 
@@ -1059,6 +1137,11 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 - [ ] 파일 수정 표시 (제목에 *)
 - [ ] 닫기 전 저장 확인
 - [ ] 닫기 후 원본 폴더 비교창의 해당 파일 재선택 및 재비교
+- [ ] 파일 위치 SWAP
+- [ ] diff overview bar 표시
+- [ ] diff overview bar 클릭/드래그 빠른 스크롤
+- [ ] All / Diff 전환 시 선택 줄 또는 마우스 위치 기준 스크롤 유지
+- [ ] 파일 비교창 작업영역 안쪽 위치 보정
 
 ### 13.3 탐색기 연동
 
