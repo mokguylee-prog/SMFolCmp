@@ -9,6 +9,7 @@ using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace SMFolCmp.Views
 {
@@ -116,6 +117,14 @@ namespace SMFolCmp.Views
         private bool _syncScroll = true;
         private bool _showOnlyDiff = true;
         private Stack<UndoAction> _undoStack = new();
+        private DiffLine _selectedLineForScroll = null;
+
+        private sealed class FilterScrollAnchor
+        {
+            public required DiffLine Line { get; init; }
+            public bool IsLeft { get; init; }
+            public double ViewportY { get; init; }
+        }
 
         static readonly Brush BgDel = new SolidColorBrush(Color.FromArgb(80,255,80,80));
         static readonly Brush BgAdd = new SolidColorBrush(Color.FromArgb(80,80,200,80));
@@ -574,16 +583,22 @@ namespace SMFolCmp.Views
 
         private void FilterAll_Click(object sender, RoutedEventArgs e)
         {
+            var anchor = CaptureFilterScrollAnchor();
             _showOnlyDiff = false;
             App.SetRegValue("CompareShowOnlyDiff", "0");
+
             ApplyFilter();
+            RestoreFilterScrollAnchor(anchor);
         }
 
         private void FilterDiff_Click(object sender, RoutedEventArgs e)
         {
+            var anchor = CaptureFilterScrollAnchor();
             _showOnlyDiff = true;
             App.SetRegValue("CompareShowOnlyDiff", "1");
+
             ApplyFilter();
+            RestoreFilterScrollAnchor(anchor);
         }
 
         private void ApplyFilter()
@@ -593,7 +608,205 @@ namespace SMFolCmp.Views
 
             FilterAllBtn.Background = new SolidColorBrush(_showOnlyDiff ? Color.FromRgb(58, 123, 213) : Color.FromRgb(82, 169, 232));
             FilterDiffBtn.Background = new SolidColorBrush(_showOnlyDiff ? Color.FromRgb(82, 169, 232) : Color.FromRgb(58, 123, 213));
-            ClearSelection();
+
+            if (_selStart < 0)
+            {
+                ClearSelection();
+            }
+        }
+
+        private FilterScrollAnchor? CaptureFilterScrollAnchor()
+        {
+            if (_selStart >= 0)
+            {
+                var selectedList = _selIsLeft ? _leftDiff : _rightDiff;
+                if (_selStart < selectedList.Count)
+                {
+                    var selectedLine = selectedList[_selStart];
+                    var selectedY = GetLineViewportY(selectedLine, _selIsLeft);
+                    return new FilterScrollAnchor
+                    {
+                        Line = selectedLine,
+                        IsLeft = _selIsLeft,
+                        ViewportY = selectedY ?? ((_selIsLeft ? LeftScroll : RightScroll).ViewportHeight / 2)
+                    };
+                }
+            }
+
+            if (LeftScroll.IsMouseOver)
+            {
+                var line = GetDiffLineAtMouse(LeftScroll);
+                if (line != null)
+                    return new FilterScrollAnchor { Line = line, IsLeft = true, ViewportY = Mouse.GetPosition(LeftScroll).Y };
+            }
+
+            if (RightScroll.IsMouseOver)
+            {
+                var line = GetDiffLineAtMouse(RightScroll);
+                if (line != null)
+                    return new FilterScrollAnchor { Line = line, IsLeft = false, ViewportY = Mouse.GetPosition(RightScroll).Y };
+            }
+
+            return CaptureTopVisibleAnchor(true) ?? CaptureTopVisibleAnchor(false);
+        }
+
+        private FilterScrollAnchor? CaptureTopVisibleAnchor(bool isLeft)
+        {
+            var diffList = isLeft ? _leftDiff : _rightDiff;
+            foreach (var line in diffList)
+            {
+                if (line.RowVisibility != Visibility.Visible) continue;
+
+                var y = GetLineViewportY(line, isLeft);
+                if (y.HasValue && y.Value >= 0)
+                    return new FilterScrollAnchor { Line = line, IsLeft = isLeft, ViewportY = y.Value };
+            }
+
+            return null;
+        }
+
+        private DiffLine? GetDiffLineAtMouse(ScrollViewer scrollViewer)
+        {
+            var pt = Mouse.GetPosition(scrollViewer);
+            var hit = VisualTreeHelper.HitTest(scrollViewer, pt);
+            var el = hit?.VisualHit as DependencyObject;
+            while (el != null)
+            {
+                if (el is Border b && b.Tag is DiffLine dl) return dl;
+                el = VisualTreeHelper.GetParent(el);
+            }
+            return null;
+        }
+
+        private double? GetLineViewportY(DiffLine line, bool isLeft)
+        {
+            var scrollViewer = isLeft ? LeftScroll : RightScroll;
+            var itemsControl = isLeft ? LeftLines : RightLines;
+            if (itemsControl.ItemContainerGenerator.ContainerFromItem(line) is not FrameworkElement item)
+                return null;
+
+            return item.TransformToAncestor(scrollViewer).Transform(new Point(0, 0)).Y;
+        }
+
+        private void RestoreFilterScrollAnchor(FilterScrollAnchor? anchor)
+        {
+            if (anchor?.Line == null) return;
+
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                UpdateLayout();
+
+                var targetLine = GetNearestVisibleLine(anchor.Line, anchor.IsLeft);
+                if (targetLine == null) return;
+
+                var scrollViewer = anchor.IsLeft ? LeftScroll : RightScroll;
+                var itemsControl = anchor.IsLeft ? LeftLines : RightLines;
+                if (itemsControl.ItemContainerGenerator.ContainerFromItem(targetLine) is not FrameworkElement item) return;
+
+                item.BringIntoView();
+                UpdateLayout();
+
+                var currentY = GetLineViewportY(targetLine, anchor.IsLeft);
+                if (!currentY.HasValue) return;
+
+                ApplySyncedVerticalOffset(scrollViewer.VerticalOffset + currentY.Value - anchor.ViewportY);
+            }), DispatcherPriority.Loaded);
+        }
+
+        private DiffLine? GetNearestVisibleLine(DiffLine anchorLine, bool isLeft)
+        {
+            if (anchorLine.RowVisibility == Visibility.Visible)
+                return anchorLine;
+
+            var diffList = isLeft ? _leftDiff : _rightDiff;
+            var anchorIndex = diffList.IndexOf(anchorLine);
+            if (anchorIndex < 0) return diffList.FirstOrDefault(line => line.RowVisibility == Visibility.Visible);
+
+            for (int distance = 1; distance < diffList.Count; distance++)
+            {
+                var previous = anchorIndex - distance;
+                if (previous >= 0 && diffList[previous].RowVisibility == Visibility.Visible)
+                    return diffList[previous];
+
+                var next = anchorIndex + distance;
+                if (next < diffList.Count && diffList[next].RowVisibility == Visibility.Visible)
+                    return diffList[next];
+            }
+
+            return null;
+        }
+
+        private void ApplySyncedVerticalOffset(double offset)
+        {
+            var boundedOffset = Math.Max(0, offset);
+            _syncScroll = false;
+            LeftScroll.ScrollToVerticalOffset(boundedOffset);
+            RightScroll.ScrollToVerticalOffset(boundedOffset);
+            LeftLineScroll.ScrollToVerticalOffset(boundedOffset);
+            RightLineScroll.ScrollToVerticalOffset(boundedOffset);
+            _syncScroll = true;
+        }
+
+        private void ScrollToLineIndex(int lineIndex, bool isLeft)
+        {
+            var scrollViewer = isLeft ? LeftScroll : RightScroll;
+            var otherScroller = isLeft ? RightScroll : LeftScroll;
+            var itemsControl = isLeft ? LeftLines : RightLines;
+            var diffList = isLeft ? _leftDiff : _rightDiff;
+
+            if (lineIndex < 0 || lineIndex >= diffList.Count) return;
+
+            int visibleIndex = 0;
+            for (int i = 0; i <= lineIndex; i++)
+            {
+                if (diffList[i].RowVisibility == Visibility.Visible)
+                {
+                    if (i == lineIndex)
+                    {
+                        var item = itemsControl.ItemContainerGenerator.ContainerFromIndex(visibleIndex) as FrameworkElement;
+                        if (item == null) return;
+
+                        _syncScroll = false;
+                        item.BringIntoView();
+                        double offset = scrollViewer.VerticalOffset - scrollViewer.ViewportHeight / 3;
+                        scrollViewer.ScrollToVerticalOffset(Math.Max(0, offset));
+                        otherScroller.ScrollToVerticalOffset(Math.Max(0, offset));
+                        _syncScroll = true;
+                        return;
+                    }
+                    visibleIndex++;
+                }
+            }
+        }
+
+        private void ScrollToSelectedLine()
+        {
+            if (_selectedLineForScroll == null) return;
+
+            var leftIndex = _leftDiff.IndexOf(_selectedLineForScroll);
+            var rightIndex = _rightDiff.IndexOf(_selectedLineForScroll);
+
+            if (leftIndex >= 0)
+            {
+                var item = LeftLines.ItemContainerGenerator.ContainerFromIndex(leftIndex) as FrameworkElement;
+                if (item != null)
+                {
+                    item.BringIntoView();
+                    double offset = LeftScroll.VerticalOffset - LeftScroll.ViewportHeight / 3;
+                    LeftScroll.ScrollToVerticalOffset(Math.Max(0, offset));
+                }
+            }
+
+            if (rightIndex >= 0)
+            {
+                var item = RightLines.ItemContainerGenerator.ContainerFromIndex(rightIndex) as FrameworkElement;
+                if (item != null)
+                {
+                    item.BringIntoView();
+                    double offset = RightScroll.VerticalOffset - RightScroll.ViewportHeight / 3;
+                    RightScroll.ScrollToVerticalOffset(Math.Max(0, offset));
+                }
+            }
         }
 
         private void SaveFiles()

@@ -42,7 +42,9 @@ namespace SMFolCmp.Models
             _ => new SolidColorBrush(Color.FromRgb(160, 160, 160))
         };
 
-        public Brush RowBackground => Status switch
+        public Brush RowBackground => IsCompareToSource
+            ? new SolidColorBrush(Color.FromRgb(0, 100, 200))
+            : (Status switch
         {
             CompareStatus.Identical => new SolidColorBrush(Color.FromRgb(45, 45, 48)),
             CompareStatus.DateOnly  => new SolidColorBrush(Color.FromRgb(112, 72, 24)),
@@ -50,25 +52,29 @@ namespace SMFolCmp.Models
             CompareStatus.LeftOnly  => new SolidColorBrush(Color.FromRgb(60, 100, 140)),
             CompareStatus.RightOnly => new SolidColorBrush(Color.FromRgb(60, 120, 60)),
             _ => new SolidColorBrush(Color.FromRgb(45, 45, 48))
-        };
+        });
 
-        public Brush LeftRowBackground => Status switch
+        public Brush LeftRowBackground => IsCompareToSource
+            ? new SolidColorBrush(Color.FromRgb(0, 100, 200))
+            : (Status switch
         {
             CompareStatus.Modified  => new SolidColorBrush(Color.FromRgb(120, 80, 40)),
             CompareStatus.DateOnly  => new SolidColorBrush(Color.FromRgb(112, 72, 24)),
             CompareStatus.LeftOnly  => new SolidColorBrush(Color.FromRgb(60, 100, 140)),
             CompareStatus.RightOnly => new SolidColorBrush(Color.FromRgb(70, 70, 70)),
             _ => new SolidColorBrush(Color.FromRgb(45, 45, 48))
-        };
+        });
 
-        public Brush RightRowBackground => Status switch
+        public Brush RightRowBackground => IsCompareToSource
+            ? new SolidColorBrush(Color.FromRgb(0, 100, 200))
+            : (Status switch
         {
             CompareStatus.Modified  => new SolidColorBrush(Color.FromRgb(120, 80, 40)),
             CompareStatus.DateOnly  => new SolidColorBrush(Color.FromRgb(112, 72, 24)),
             CompareStatus.RightOnly => new SolidColorBrush(Color.FromRgb(60, 120, 60)),
             CompareStatus.LeftOnly  => new SolidColorBrush(Color.FromRgb(70, 70, 70)),
             _ => new SolidColorBrush(Color.FromRgb(45, 45, 48))
-        };
+        });
 
         public Brush TextColor => Status switch
         {
@@ -97,6 +103,12 @@ namespace SMFolCmp.Models
         {
             get => _isExpanded;
             set { _isExpanded = value; OnPropertyChanged(nameof(IsExpanded)); OnPropertyChanged(nameof(Icon)); }
+        }
+        private bool _isCompareToSource;
+        public bool IsCompareToSource
+        {
+            get => _isCompareToSource;
+            set { _isCompareToSource = value; OnPropertyChanged(nameof(IsCompareToSource)); OnPropertyChanged(nameof(RowBackground)); OnPropertyChanged(nameof(LeftRowBackground)); OnPropertyChanged(nameof(RightRowBackground)); }
         }
         public int Depth { get; set; } = 0;
         public bool IsLastVisibleSibling { get; set; }

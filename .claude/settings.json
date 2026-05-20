@@ -16,7 +16,10 @@
       "PowerShell(Start-Process \"d:\\\\work_web\\\\FolderComparer\\\\FolderComparer\\\\bin\\\\Debug\\\\net8.0-windows\\\\FolderComparer.exe\")",
       "PowerShell(& \"d:\\\\work_web\\\\FolderComparer\\\\FolderComparer\\\\register_context_menu.ps1\")",
       "PowerShell(Write-Host \"=== 스크린샷 정보 ===\" -ForegroundColor Cyan; Get-Item \"d:\\\\work_web\\\\FolderComparer\\\\screenshots\\\\main_window.png\" | Select-Object FullName, @{Name=\"Size\\(KB\\)\";Expression={\"{0:F2}\" -f \\($_.Length/1KB\\)}} | Format-Table; Write-Host \"\"; Write-Host \"=== README.md 수정 ===\" -ForegroundColor Cyan; Write-Host \"✓ 스크린샷 섹션 추가됨\" -ForegroundColor Green)",
-      "PowerShell(Move-Item \"d:\\\\work_web\\\\FolderComparer\\\\README.md\" \"d:\\\\work_web\\\\FolderComparer\\\\FolderComparer\\\\README.md\" -Force)"
+      "PowerShell(Move-Item \"d:\\\\work_web\\\\FolderComparer\\\\README.md\" \"d:\\\\work_web\\\\FolderComparer\\\\FolderComparer\\\\README.md\" -Force)",
+      "PowerShell(.\\\\build.ps1 -Configuration Debug 2>&1)",
+      "PowerShell(Get-Process SMFolCmp -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force)"
     ],
     "additionalDirectories": [
       "d:\\work_web\\FolderComparer"

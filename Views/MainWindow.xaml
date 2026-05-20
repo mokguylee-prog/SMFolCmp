@@ -224,6 +224,8 @@
                         <MenuItem Header="삭제" Click="Delete_Click" Background="#2D2D30" Foreground="#FF6B6B"/>
                         <Separator Background="#3E3E42"/>
                         <MenuItem Header="파일 비교" Click="OpenCompare_Click" Background="#2D2D30" Foreground="#E0E0E0"/>
+                        <Separator Background="#3E3E42"/>
+                        <MenuItem Header="Compare to..." Click="CompareTo_Click" Background="#2D2D30" Foreground="#E0E0E0"/>
                     </ContextMenu>
                 </ListBox.ContextMenu>
             </ListBox>
@@ -295,6 +297,8 @@
                         <MenuItem Header="삭제" Click="Delete_Click" Background="#2D2D30" Foreground="#FF6B6B"/>
                         <Separator Background="#3E3E42"/>
                         <MenuItem Header="파일 비교" Click="OpenCompare_Click" Background="#2D2D30" Foreground="#E0E0E0"/>
+                        <Separator Background="#3E3E42"/>
+                        <MenuItem Header="Compare to..." Click="CompareTo_Click" Background="#2D2D30" Foreground="#E0E0E0"/>
                     </ContextMenu>
                 </ListBox.ContextMenu>
             </ListBox>

@@ -34,6 +34,10 @@ namespace SMFolCmp.Views
         private int _dragStartIndex = -1;
         private bool _isComparing = false;
         private CancellationTokenSource? _compareCancellation;
+        private FileItem _compareToSourceItem = null;
+        private bool _compareToMode = false;
+        private string _compareToSourcePath = null;
+        private ListBox _compareToSourceGrid = null;
 
         private sealed class PreciseCompareCandidate
         {
@@ -527,7 +531,9 @@ namespace SMFolCmp.Views
         private void FileGrid_MouseDoubleClick(object sender, MouseButtonEventArgs e)
         {
             var grid = sender as ListBox;
-            if (grid?.SelectedItem is FileItem item && item.IsDirectory)
+            if (!(grid?.SelectedItem is FileItem item)) return;
+
+            if (item.IsDirectory)
             {
                 if (item.HasChildren)
                 {
@@ -536,6 +542,7 @@ namespace SMFolCmp.Views
                 }
                 return;
             }
+
             OpenSelectedCompare();
         }
 
@@ -546,6 +553,23 @@ namespace SMFolCmp.Views
             FileItem item = LeftGrid.SelectedItem as FileItem ?? RightGrid.SelectedItem as FileItem;
             if (item is null || item.IsDirectory) return;
             new CompareWindow(item.LeftPath, item.RightPath, _leftFolder, _rightFolder) { Owner = this }.Show();
+        }
+
+        private void CompareTo_Click(object sender, RoutedEventArgs e)
+        {
+            var item = GetSourceGrid()?.SelectedItem as FileItem;
+            if (item is null || item.IsDirectory) return;
+
+            if (_compareToSourceItem != null) _compareToSourceItem.IsCompareToSource = false;
+            _compareToSourceItem = item;
+            item.IsCompareToSource = true;
+
+            _compareToSourceGrid = GetSourceGrid();
+            bool fromLeft = _compareToSourceGrid == LeftGrid;
+            _compareToSourcePath = fromLeft ? item.LeftPath : item.RightPath;
+            _compareToMode = true;
+            Mouse.OverrideCursor = Cursors.Help;
+            StatusText.Text = $"Compare mode: Click a file in the {(fromLeft ? "right" : "left")} pane";
         }
 
         public void SelectAndCompareFiles(string leftPath, string rightPath)
@@ -807,9 +831,25 @@ namespace SMFolCmp.Views
                 var item = listBox?.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
                 if (item != null)
                 {
-                    var index = listBox.Items.IndexOf(((FrameworkElement)item).DataContext);
+                    var fileItem = ((FrameworkElement)item).DataContext as FileItem;
+                    var index = listBox.Items.IndexOf(fileItem);
                     if (index >= 0)
                     {
+                        if (_compareToMode)
+                        {
+                            if (fileItem.IsDirectory && fileItem.HasChildren)
+                            {
+                                fileItem.IsExpanded = !fileItem.IsExpanded;
+                                RebuildFlatList();
+                                e.Handled = true;
+                                return;
+                            }
+                            listBox.SelectedIndex = index;
+                            HandleCompareToSelection(LeftGrid);
+                            e.Handled = true;
+                            return;
+                        }
+
                         bool ctrlPressed = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
                         bool shiftPressed = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
 
@@ -849,9 +889,25 @@ namespace SMFolCmp.Views
                 var item = listBox?.InputHitTest(e.GetPosition(listBox)) as DependencyObject;
                 if (item != null)
                 {
-                    var index = listBox.Items.IndexOf(((FrameworkElement)item).DataContext);
+                    var fileItem = ((FrameworkElement)item).DataContext as FileItem;
+                    var index = listBox.Items.IndexOf(fileItem);
                     if (index >= 0)
                     {
+                        if (_compareToMode)
+                        {
+                            if (fileItem.IsDirectory && fileItem.HasChildren)
+                            {
+                                fileItem.IsExpanded = !fileItem.IsExpanded;
+                                RebuildFlatList();
+                                e.Handled = true;
+                                return;
+                            }
+                            listBox.SelectedIndex = index;
+                            HandleCompareToSelection(RightGrid);
+                            e.Handled = true;
+                            return;
+                        }
+
                         bool ctrlPressed = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
                         bool shiftPressed = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
 
@@ -963,6 +1019,8 @@ namespace SMFolCmp.Views
 
         private void LeftGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (HandleCompareToSelection(LeftGrid)) return;
+
             if (_isSyncingSelection) return;
             _isSyncingSelection = true;
             RightGrid.SelectedIndex = LeftGrid.SelectedIndex;
@@ -971,10 +1029,39 @@ namespace SMFolCmp.Views
 
         private void RightGrid_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
+            if (HandleCompareToSelection(RightGrid)) return;
+
             if (_isSyncingSelection) return;
             _isSyncingSelection = true;
             LeftGrid.SelectedIndex = RightGrid.SelectedIndex;
             _isSyncingSelection = false;
+        }
+
+        private bool HandleCompareToSelection(ListBox grid)
+        {
+            if (!_compareToMode || _compareToSourcePath == null || _compareToSourceGrid == null) return false;
+
+            var item = grid.SelectedItem as FileItem;
+            if (item is null || item.IsDirectory) return false;
+
+            bool isOtherGrid = grid != _compareToSourceGrid;
+            if (!isOtherGrid) return false;
+
+            string targetPath = grid == LeftGrid ? item.LeftPath : item.RightPath;
+            if (targetPath == null) return false;
+
+            string leftPath = _compareToSourceGrid == LeftGrid ? _compareToSourcePath : targetPath;
+            string rightPath = _compareToSourceGrid == LeftGrid ? targetPath : _compareToSourcePath;
+
+            new CompareWindow(leftPath, rightPath) { Owner = this }.Show();
+            if (_compareToSourceItem != null) _compareToSourceItem.IsCompareToSource = false;
+            _compareToMode = false;
+            _compareToSourcePath = null;
+            _compareToSourceGrid = null;
+            _compareToSourceItem = null;
+            Mouse.OverrideCursor = null;
+            StatusText.Text = "Select folders and click Compare button.";
+            return true;
         }
 
         private ScrollViewer GetScrollViewer(DependencyObject o)
