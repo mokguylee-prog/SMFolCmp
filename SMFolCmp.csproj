@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>SMFolCmp</AssemblyName>
+    <RootNamespace>SMFolCmp</RootNamespace>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <ApplicationIcon>SMFolCmp.ico</ApplicationIcon>
+    <Version>1.0.0.5</Version>
+    <AssemblyVersion>1.0.0.5</AssemblyVersion>
+    <InformationalVersion>1.0.0.5</InformationalVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Ookii.Dialogs.Wpf" Version="5.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="SMFolCmp.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="ShellExtension\**\*.cs" />
+    <None Remove="ShellExtension\**\*" />
+    <Page Remove="ShellExtension\**\*.xaml" />
+  </ItemGroup>
+
+  <Target Name="PostBuildCopy" AfterTargets="Build">
+    <Exec Command="powershell -ExecutionPolicy Bypass -File copy-to-utils.ps1 -OutputPath $(OutputPath)" />
+  </Target>
+</Project>

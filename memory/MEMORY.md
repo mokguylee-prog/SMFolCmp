@@ -1,0 +1,2 @@
+- [Unified Context Menu](unified_context_menu.md) — Single SMFolCmp menu with intelligent 1 vs 2 folder detection
+- [Auto-refresh UI after copy/delete](ui_refresh_after_operations.md) — Preserves expanded folders while updating file system changes

@@ -1,0 +1,309 @@
+<Window x:Class="SMFolCmp.Views.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="SMFolCmp by 월평동 이상목" Height="700" Width="1400"
+        WindowStartupLocation="CenterScreen" Background="#1E1E1E">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
+        <Style x:Key="BtnStyle" TargetType="Button">
+            <Setter Property="Background" Value="#0E639C"/><Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="12,6"/><Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/><Setter Property="FontSize" Value="13"/>
+            <Setter Property="MinHeight" Value="38"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#1177BB"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="DarkTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="#3C3C3C"/>
+            <Setter Property="Foreground" Value="#E0E0E0"/>
+            <Setter Property="BorderBrush" Value="#3E3E42"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+    </Window.Resources>
+    <Border BorderBrush="Red" BorderThickness="3">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header Row -->
+        <Border Grid.Row="0" Background="#252526" Padding="16,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="SMFolCmp" Foreground="#E0E0E0" FontSize="18" FontWeight="Bold" VerticalAlignment="Center"/>
+                <Button Grid.Column="1" Content="⚙ Setup" Click="Setup_Click" Background="#3C3C3C" Foreground="#E0E0E0" Padding="15,8" BorderThickness="0" Cursor="Hand" FontSize="12" Style="{StaticResource BtnStyle}"/>
+            </Grid>
+        </Border>
+
+        <!-- Path Selection Row -->
+        <Grid Grid.Row="1" Background="#252526">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- LEFT path area -->
+            <Border Grid.Column="0" Background="#1A3A50" Padding="10,8" AllowDrop="True" Drop="LeftPathBox_Drop">
+                <Grid PreviewDragEnter="PathBox_PreviewDragEnter" PreviewDragOver="PathBox_PreviewDragOver">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TextBox x:Name="LeftPathBox" Grid.Column="0" Text="Select left folder..." Foreground="White" FontSize="13" BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" Padding="5,0"/>
+                    <Button Grid.Column="1" Content="Browse Left" Style="{StaticResource BtnStyle}" Click="SelectLeftFolder_Click" Margin="8,0,0,0" Background="#2A5A8A"/>
+                </Grid>
+            </Border>
+
+            <!-- Compare and Swap button area -->
+            <Border Grid.Column="1" Background="#1A3A1A" Padding="10,8">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button x:Name="CompareBtn" Content="⟳ F5" Style="{StaticResource BtnStyle}" Background="#1E7E34" Click="Compare_Click" ToolTip="Refresh (F5)" Margin="0,0,8,0"/>
+                    <Button x:Name="SwapBtn" Content="⇌" Style="{StaticResource BtnStyle}" Background="#1E7E34" Click="Swap_Click" ToolTip="Swap left and right" FontSize="16"/>
+                </StackPanel>
+            </Border>
+
+            <!-- RIGHT path area -->
+            <Border Grid.Column="2" Background="#1A3A1A" Padding="10,8" AllowDrop="True" Drop="RightPathBox_Drop">
+                <Grid PreviewDragEnter="PathBox_PreviewDragEnter" PreviewDragOver="PathBox_PreviewDragOver">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Button Grid.Column="0" Content="Browse Right" Style="{StaticResource BtnStyle}" Click="SelectRightFolder_Click" Margin="0,0,8,0" Background="#2A5A2A"/>
+                    <TextBox x:Name="RightPathBox" Grid.Column="1" Text="Select right folder..." Foreground="White" FontSize="13" BorderThickness="0" Background="Transparent" VerticalContentAlignment="Center" Padding="5,0"/>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Filter Buttons Row -->
+        <Border Grid.Row="2" Background="#252526" Padding="10,8">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center">
+                <Button x:Name="FilterAllBtn" Content="All" Click="FilterAll_Click" Style="{StaticResource BtnStyle}" Background="#0E639C" Margin="0,0,8,0" Padding="16,6" FontSize="12"/>
+                <Button x:Name="FilterDiffBtn" Content="Diff" Click="FilterDiff_Click" Style="{StaticResource BtnStyle}" Background="#1177BB" Margin="0,0,8,0" Padding="16,6" FontSize="12"/>
+                <Button x:Name="FilterDiff2Btn" Content="Diff2" Click="FilterDiff2_Click" Style="{StaticResource BtnStyle}" Background="#1177BB" Margin="0,0,20,0" Padding="16,6" FontSize="12"/>
+
+                <TextBlock Text="파일배제:" Foreground="#E0E0E0" VerticalAlignment="Center" Margin="0,0,5,0" FontSize="11"/>
+                <TextBox x:Name="ExcludeFilePatternsBox" Width="180" Height="28" Background="#3C3C3C" Foreground="#E0E0E0" BorderBrush="#3E3E42" BorderThickness="1" Padding="6,5" VerticalContentAlignment="Center" ToolTip="예: *.o; *.bin; *.md"/>
+                <Button Content="저장" Click="SaveFilePatterns_Click" Style="{StaticResource BtnStyle}" Background="#2A5A8A" Padding="12,6" FontSize="11" Margin="0,0,15,0" Height="28"/>
+
+                <TextBlock Text="폴더배제:" Foreground="#E0E0E0" VerticalAlignment="Center" Margin="0,0,5,0" FontSize="11"/>
+                <TextBox x:Name="ExcludeFolderPatternsBox" Width="180" Height="28" Background="#3C3C3C" Foreground="#E0E0E0" BorderBrush="#3E3E42" BorderThickness="1" Padding="6,5" VerticalContentAlignment="Center" ToolTip="예: build; obj; .git"/>
+                <Button Content="저장" Click="SaveFolderPatterns_Click" Style="{StaticResource BtnStyle}" Background="#2A5A8A" Padding="12,6" FontSize="11" Height="28"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Column Headers Row -->
+        <Border Grid.Row="3" Background="#2D2D30" BorderBrush="#3E3E42" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="5"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- LEFT Headers -->
+                <Grid Grid.Column="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="28"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="90"/>
+                        <ColumnDefinition Width="150"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Grid.ColumnSpan="5" Background="#2A5A8A" Foreground="#E0E0E0" FontSize="11" FontWeight="Bold" Padding="4,5" Text="LEFT"/>
+                    <TextBlock Grid.Column="0" Background="#2A5A8A" Foreground="#E0E0E0" FontSize="10" Padding="4,5"/>
+                    <TextBlock Grid.Column="1" Background="#2A5A8A" Foreground="#E0E0E0" FontSize="10" Padding="4,5"/>
+                    <TextBlock Grid.Column="2" Background="#2A5A8A" Foreground="#E0E0E0" FontSize="11" FontWeight="Bold" Padding="4,5" Text="Name"/>
+                    <TextBlock Grid.Column="3" Background="#2A5A8A" Foreground="#E0E0E0" FontSize="11" FontWeight="Bold" Padding="4,5" HorizontalAlignment="Center" Text="Size"/>
+                    <TextBlock Grid.Column="4" Background="#2A5A8A" Foreground="#E0E0E0" FontSize="11" FontWeight="Bold" Padding="4,5" Text="Modified"/>
+                </Grid>
+
+                <!-- Splitter -->
+                <Border Grid.Column="1" Background="#3E3E42"/>
+
+                <!-- RIGHT Headers -->
+                <Grid Grid.Column="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="28"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="90"/>
+                        <ColumnDefinition Width="150"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Grid.ColumnSpan="5" Background="#2A5A2A" Foreground="#E0E0E0" FontSize="11" FontWeight="Bold" Padding="4,5" Text="RIGHT"/>
+                    <TextBlock Grid.Column="0" Background="#2A5A2A" Foreground="#E0E0E0" FontSize="10" Padding="4,5"/>
+                    <TextBlock Grid.Column="1" Background="#2A5A2A" Foreground="#E0E0E0" FontSize="10" Padding="4,5"/>
+                    <TextBlock Grid.Column="2" Background="#2A5A2A" Foreground="#E0E0E0" FontSize="11" FontWeight="Bold" Padding="4,5" Text="Name"/>
+                    <TextBlock Grid.Column="3" Background="#2A5A2A" Foreground="#E0E0E0" FontSize="11" FontWeight="Bold" Padding="4,5" HorizontalAlignment="Center" Text="Size"/>
+                    <TextBlock Grid.Column="4" Background="#2A5A2A" Foreground="#E0E0E0" FontSize="11" FontWeight="Bold" Padding="4,5" Text="Modified"/>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- Content Row with LEFT and RIGHT ListBoxes -->
+        <Grid Grid.Row="4" Background="#1E1E1E">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- LEFT ListBox -->
+            <ListBox x:Name="LeftGrid" Grid.Column="0" SelectionMode="Extended" BorderThickness="0" FontSize="13"
+                     Background="#2D2D30" Foreground="#E0E0E0"
+                     VirtualizingStackPanel.IsVirtualizing="True" VirtualizingStackPanel.VirtualizationMode="Recycling"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto" MouseDoubleClick="FileGrid_MouseDoubleClick" KeyDown="FileGrid_KeyDown"
+                     PreviewMouseDown="LeftGrid_PreviewMouseDown" PreviewMouseMove="LeftGrid_PreviewMouseMove" PreviewMouseLeftButtonUp="LeftGrid_PreviewMouseUp"
+                     ContextMenuOpening="Grid_ContextMenuOpening"
+                     ScrollViewer.ScrollChanged="LeftGrid_ScrollChanged" SelectionChanged="LeftGrid_SelectionChanged">
+                <ListBox.Resources>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Foreground" Value="#E0E0E0"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#094771"/>
+                                <Setter Property="Foreground" Value="#E0E0E0"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </ListBox.Resources>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="1"/>
+                            </Grid.RowDefinitions>
+                            <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="ExpandIcon_Click">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="150"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding LeftTreeLineString}" FontSize="13" FontFamily="Consolas"
+                                           VerticalAlignment="Center" Padding="4,0,2,0" Foreground="#858585"/>
+                                <Grid Grid.Column="1" Width="28">
+                                    <TextBlock Text="{Binding Icon}" FontSize="17" FontFamily="Segoe MDL2 Assets"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{Binding IconForeground}" Background="{Binding IconBackground}" Padding="0" Cursor="Hand"
+                                               Visibility="{Binding IsDirectory, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    <Border Width="7" Height="7" Background="{Binding FileMarkerBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            Visibility="{Binding IsFile, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                </Grid>
+                                <TextBlock Grid.Column="2" Text="{Binding LeftDisplayName}"
+                                           VerticalAlignment="Center" Padding="4,0" Foreground="{Binding TextColor}"/>
+                                <TextBlock Grid.Column="3" Text="{Binding LeftSizeText}" Padding="4,0" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{Binding TextColor}"/>
+                                <TextBlock Grid.Column="4" Text="{Binding LeftModifiedText}" Padding="4,0" VerticalAlignment="Center" Foreground="{Binding TextColor}"/>
+                            </Grid>
+                            <Border Grid.Row="1" Background="#444444" Height="1"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+                <ListBox.ContextMenu>
+                    <ContextMenu Background="#2D2D30" Foreground="#E0E0E0">
+                        <MenuItem Header="→ 오른쪽으로 복사" Click="CopyToOpposite_Click" Background="#2D2D30" Foreground="#E0E0E0"/>
+                        <Separator Background="#3E3E42"/>
+                        <MenuItem Header="삭제" Click="Delete_Click" Background="#2D2D30" Foreground="#FF6B6B"/>
+                        <Separator Background="#3E3E42"/>
+                        <MenuItem Header="파일 비교" Click="OpenCompare_Click" Background="#2D2D30" Foreground="#E0E0E0"/>
+                    </ContextMenu>
+                </ListBox.ContextMenu>
+            </ListBox>
+
+            <!-- GridSplitter -->
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="#3E3E42" Cursor="SizeWE"/>
+
+            <!-- RIGHT ListBox -->
+            <ListBox x:Name="RightGrid" Grid.Column="2" SelectionMode="Extended" BorderThickness="0" FontSize="13"
+                     Background="#2D2D30" Foreground="#E0E0E0"
+                     VirtualizingStackPanel.IsVirtualizing="True" VirtualizingStackPanel.VirtualizationMode="Recycling"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto" MouseDoubleClick="FileGrid_MouseDoubleClick" KeyDown="FileGrid_KeyDown"
+                     PreviewMouseDown="RightGrid_PreviewMouseDown" PreviewMouseMove="RightGrid_PreviewMouseMove" PreviewMouseLeftButtonUp="RightGrid_PreviewMouseUp"
+                     ContextMenuOpening="Grid_ContextMenuOpening"
+                     ScrollViewer.ScrollChanged="RightGrid_ScrollChanged" SelectionChanged="RightGrid_SelectionChanged">
+                <ListBox.Resources>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Foreground" Value="#E0E0E0"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="#094771"/>
+                                <Setter Property="Foreground" Value="#E0E0E0"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </ListBox.Resources>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="1"/>
+                            </Grid.RowDefinitions>
+                            <Grid Grid.Row="0" Background="Transparent" MouseLeftButtonDown="ExpandIcon_Click">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition Width="150"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding RightTreeLineString}" FontSize="13" FontFamily="Consolas"
+                                           VerticalAlignment="Center" Padding="4,0,2,0" Foreground="#858585"/>
+                                <Grid Grid.Column="1" Width="28">
+                                    <TextBlock Text="{Binding Icon}" FontSize="17" FontFamily="Segoe MDL2 Assets"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{Binding IconForeground}" Background="{Binding IconBackground}" Padding="0" Cursor="Hand"
+                                               Visibility="{Binding IsDirectory, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                    <Border Width="7" Height="7" Background="{Binding FileMarkerBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            Visibility="{Binding IsFile, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                </Grid>
+                                <TextBlock Grid.Column="2" Text="{Binding RightDisplayName}"
+                                           VerticalAlignment="Center" Padding="4,0" Foreground="{Binding TextColor}"/>
+                                <TextBlock Grid.Column="3" Text="{Binding RightSizeText}" Padding="4,0" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{Binding TextColor}"/>
+                                <TextBlock Grid.Column="4" Text="{Binding RightModifiedText}" Padding="4,0" VerticalAlignment="Center" Foreground="{Binding TextColor}"/>
+                            </Grid>
+                            <Border Grid.Row="1" Background="#444444" Height="1"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+                <ListBox.ContextMenu>
+                    <ContextMenu Background="#2D2D30" Foreground="#E0E0E0">
+                        <MenuItem Header="→ 오른쪽으로 복사" Click="CopyToOpposite_Click" Background="#2D2D30" Foreground="#E0E0E0"/>
+                        <Separator Background="#3E3E42"/>
+                        <MenuItem Header="삭제" Click="Delete_Click" Background="#2D2D30" Foreground="#FF6B6B"/>
+                        <Separator Background="#3E3E42"/>
+                        <MenuItem Header="파일 비교" Click="OpenCompare_Click" Background="#2D2D30" Foreground="#E0E0E0"/>
+                    </ContextMenu>
+                </ListBox.ContextMenu>
+            </ListBox>
+        </Grid>
+
+        <!-- Status Bar Row -->
+        <Border Grid.Row="5" Background="#252526" Padding="12,6" BorderBrush="#3E3E42" BorderThickness="0,1,0,0">
+            <TextBlock x:Name="StatusText" Foreground="#A0A0A0" FontSize="12" Text="Select folders and click Compare button."/>
+        </Border>
+    </Grid>
+    </Border>
+</Window>

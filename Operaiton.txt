@@ -1,0 +1,38 @@
+동작 1: 왼쪽 폴더/파일 지정
+
+폴더 또는 파일 1개 선택 → 마우스 오른쪽 버튼 → "SMFolCmp with Left" 클릭
+↓
+Registry의 LeftFolder 또는 LeftFile에 저장 (GUI 없음, 조용히 종료)
+
+동작 2: 저장된 왼쪽과 비교
+
+폴더 또는 파일 1개 선택 → 마우스 오른쪽 버튼 → "SMFolCmp and Compare" 클릭
+↓
+저장된 LeftFolder/LeftFile과 선택한 항목으로 비교 창 열기
+
+동작 3: 2개 폴더/파일 동시 선택 (중요!) ✓ 구현 완료
+
+폴더 또는 파일 2개 동시 선택 → 마우스 오른쪽 버튼
+↓
+메뉴 1개만 표시: "Compare with SMFolCmp" (MultiSelectModel 사용)
+↓
+한 번에 실행:
+  SMFolCmp.exe --compare-selected "항목1" "항목2"
+↓
+바로 비교 화면으로 이동 (pending 없음!)
+
+동작 4: 파일도 동일하게 작동 ✓
+
+파일을 선택했을 때도 폴더와 완전히 동일하게 동작:
+- 파일 1개: LeftFile 저장
+- 파일 2개: 바로 File Compare 창 열기
+- 파일 + 폴더 조합도 지원
+
+=== 구현 방식 ===
+- Windows Registry의 MultiSelectModel = "Player" 사용
+- 여러 선택 항목을 한 번에 --compare-selected 매개변수로 전달
+- 각 실행마다 한 번만 실행 (pending 필요 없음)
+
+
+폴더 비교창에서 버튼을 추가하고 기능을 추가할 것임. ALL, Diff 옆에 Diff2 버튼을 추가하고.
+Diff의 폴더및 파일의 차이점에 노란색으로 표시되는 날짜가 같은 파일도 포함하여 필터링 처리를 필요.

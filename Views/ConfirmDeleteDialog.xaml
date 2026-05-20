@@ -1,0 +1,37 @@
+<Window x:Class="SMFolCmp.Views.ConfirmDeleteDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="삭제 확인" MinHeight="160" MinWidth="450" MaxWidth="600"
+        WindowStartupLocation="CenterOwner"
+        Background="#1E1E1E"
+        Foreground="#E0E0E0"
+        ResizeMode="NoResize"
+        WindowStyle="ToolWindow"
+        SizeToContent="WidthAndHeight">
+    <Border Padding="20">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Message -->
+            <StackPanel Grid.Row="0" VerticalAlignment="Center">
+                <TextBlock Text="⚠" FontSize="32" Foreground="#E67E22" Margin="0,0,0,10" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="MessageText"
+                           Text="메시지"
+                           TextWrapping="Wrap"
+                           FontSize="13"
+                           Foreground="#E0E0E0"
+                           TextAlignment="Center"
+                           LineHeight="20"/>
+            </StackPanel>
+
+            <!-- Buttons -->
+            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                <Button Content="취소" Width="90" Height="36" Margin="0,0,10,0" Background="#3C3C3C" Foreground="#E0E0E0" Click="Cancel_Click" BorderThickness="0" Cursor="Hand"/>
+                <Button Content="삭제" Width="90" Height="36" Background="#E74C3C" Foreground="White" Click="Delete_Click" BorderThickness="0" Cursor="Hand"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>
