@@ -157,10 +157,13 @@ SMFolCmp.exe --compare-pair "<path1>" "<path2>"
 | `PendingPath` | 다중 선택 전달 보완용 임시 경로 |
 | `PendingTime` | `PendingPath` 저장 시각 tick |
 | `CompareShowOnlyDiff` | 파일 비교창 필터 상태. `"1"`이면 Diff, `"0"`이면 All |
+| `ExcludeFilePatterns` | 폴더 비교창에서 화면 표시에서 제외할 파일명 패턴 문자열 |
+| `ExcludeFolderPatterns` | 폴더 비교창에서 화면 표시에서 제외할 폴더명 패턴 문자열 |
 
 참고:
 
-- 폴더 비교창의 `All` / `Diff` 상태는 현재 저장하지 않는다.
+- 폴더 비교창의 `All` / `Diff` / `Diff2` 필터 상태는 현재 저장하지 않는다.
+- 폴더 비교창의 파일/폴더 배제 패턴은 저장한다.
 - 파일 비교창의 기본 필터는 `Diff`다.
 
 ## 6. Windows 탐색기 컨텍스트 메뉴
@@ -216,7 +219,7 @@ HKCU\Software\Classes\*\shell\SMFolCmpLeft
 HKCU\Software\Classes\*\shell\SMFolCmpCompare
 ```
 
-메뉴와 명령은 폴더와 동일하다.
+메뉴와 명령은 폴더 1개 선택과 동일하다.
 
 #### 파일 또는 폴더 2개 선택
 
@@ -282,10 +285,14 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 2. 경로 선택 영역
    - Left path box + `Browse Left`
    - 가운데 `Compare` 버튼
+   - 가운데 `Swap` 버튼 `⇌`
    - `Browse Right` + Right path box
 3. 필터 영역
    - `All`
    - `Diff`
+   - `Diff2`
+   - `파일배제:` 패턴 입력 + `저장`
+   - `폴더배제:` 패턴 입력 + `저장`
 4. 컬럼 헤더
    - 좌우 각각:
      - 트리 선
@@ -300,7 +307,16 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 
 - 좌우 경로 텍스트박스는 현재 구현에서 사실상 표시용이다.
 - 사용자가 텍스트박스에 경로를 직접 입력해도 `_leftFolder`, `_rightFolder` 필드에는 자동 반영되지 않는다.
-- 실제 경로 반영은 폴더 선택 버튼 또는 생성자 인수로만 일어난다.
+- 실제 경로 반영은 폴더 선택 버튼, 탐색기/생성자 인수, 또는 경로 영역으로 폴더를 드래그 앤 드롭할 때 일어난다.
+- 드래그 앤 드롭은 파일 드롭 형식을 받지만, 실제 반영은 첫 번째 항목이 폴더일 때만 한다.
+- 왼쪽/오른쪽 경로 영역은 `AllowDrop = true`이며 `PreviewDragEnter`, `PreviewDragOver`에서 복사 효과를 표시한다.
+
+### 7.2.1 좌우 폴더 Swap
+
+- `⇌` 버튼을 누르면 `_leftFolder`와 `_rightFolder` 값을 서로 교환한다.
+- 좌우 경로 텍스트박스도 같이 갱신한다.
+- 교환 후 레지스트리에 저장하고 즉시 비교를 다시 시작한다.
+- 한쪽이라도 폴더가 비어 있으면 `두 폴더를 모두 선택하세요` 경고를 표시하고 동작하지 않는다.
 
 ### 7.3 좌우 목록 행 표현
 
@@ -395,6 +411,7 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 
 - 1차 결과는 사용자가 빠르게 구조를 볼 수 있도록 먼저 보여주는 임시 결과다.
 - 같은 크기 파일은 2차 정밀 비교가 끝날 때까지 `DateOnly` 또는 `Identical`에서 `Modified`로 바뀔 수 있다.
+- 현재 구현에는 해시/내용 비교 결과의 지속 캐시가 없다. 같은 크기 파일은 비교를 실행할 때마다 2차에서 다시 바이너리 내용을 확인한다.
 
 폴더 항목 수집 규칙:
 
@@ -465,18 +482,38 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 - `Identical`이 아닌 항목 표시
 - 폴더 자신이 동일이어도 하위에 표시 대상이 있으면 폴더는 표시
 
+`Diff2`:
+
+- `Identical`과 `DateOnly`를 제외한 항목 표시
+- 즉 내용 변경, 왼쪽만, 오른쪽만 존재하는 항목만 차이로 본다.
+- 폴더 자신이 동일 또는 DateOnly여도 하위에 `Diff2` 표시 대상이 있으면 폴더는 표시
+
+파일/폴더 배제 패턴:
+
+- 패턴 문자열은 세미콜론 `;`으로 구분한다.
+- 각 패턴은 앞뒤 공백을 제거하고 빈 패턴은 무시한다.
+- 파일 패턴은 파일명에만 적용하고, 폴더 패턴은 폴더명에만 적용한다.
+- 지원 와일드카드:
+  - `*`: 임의 길이 문자열
+  - `?`: 임의 한 글자
+- 현재 구현의 와일드카드 비교는 대소문자를 그대로 비교한다.
+- 배제는 화면 표시와 하위 표시 대상 판정에만 적용한다.
+- 비교 트리와 상태 카운트에는 배제된 항목도 내부적으로 남아 있다.
+- 패턴 저장 버튼을 누르면 레지스트리에 저장하고 현재 플랫 목록을 다시 만든다.
+
 상태 바:
 
 ```text
-총 <total>개 | 동일: <id>  변경: <mo>  왼쪽만: <lo>  오른쪽만: <ro>
+총 <total>개 | 동일: <id>  변경: <mo>  날짜만: <da>  왼쪽만: <lo>  오른쪽만: <ro>
 ```
 
-`DateOnly`는 현재 `변경` 수에 포함한다.
+`DateOnly`는 별도 `날짜만` 수로 표시한다.
 
 버튼 텍스트:
 
 - `All (<total>)`
-- `Diff (<modified + leftOnly + rightOnly>)`
+- `Diff (<modified + dateOnly + leftOnly + rightOnly>)`
+- `Diff2 (<modified + leftOnly + rightOnly>)`
 
 ### 7.10 폴더 확장과 비교 열기
 
@@ -509,8 +546,10 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 - 파일은 덮어쓰기
 - 폴더는 재귀 복사
 - 복사 후:
-  - 기존 펼침 상태 유지
+  - 복사 전 확장된 폴더 경로 저장
   - 전체 비교 재실행
+  - 재실행은 `Compare_Click`을 통한 2단계 비동기 비교 흐름을 사용한다.
+  - 저장된 폴더 경로를 다시 확장 (`RestoreExpandedStateRecursive`)
 
 ### 7.12 삭제 동작
 
@@ -523,8 +562,10 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
   - 폴더마다 개별 확인
   - 승인 시 재귀 삭제
 - 삭제 후:
-  - 기존 펼침 상태 유지
+  - 삭제 전 확장된 폴더 경로 저장
   - 전체 비교 재실행
+  - 재실행은 `Compare_Click`을 통한 2단계 비동기 비교 흐름을 사용한다.
+  - 저장된 폴더 경로를 다시 확장 (`RestoreExpandedStateRecursive`)
 
 ### 7.13 좌우 동기화
 
@@ -560,6 +601,7 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 - 시작 위치: owner 중앙
 - 좌우 파일명은 상단에 표시
 - 수정된 파일명 앞에는 `* ` 추가
+- 좌우 중 하나라도 수정되면 양쪽 제목 모두에 `* ` 표시
 
 ### 8.2 화면 구조
 
@@ -620,7 +662,7 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 
 - `Text`
 - `Background`
-- `OriginalBackground`
+- `OriginalBackground` (선택 해제 시 원래 배경색 복원용)
 - `Foreground`
 - `LineNumber`
 - `LineIndex`
@@ -629,6 +671,10 @@ HKCU\Software\Classes\*\shell\SMFolCmpMultiCompare
 - `IsDifferenceRow`
 - `RowVisibility`
 - `RedHighlights`
+
+`DiffLine` 클래스는 `INotifyPropertyChanged` 구현:
+- `Text`와 `Background` 프로퍼티 변경 시 자동 UI 갱신
+- 드래그 선택 및 컨텍스트 메뉴 동작 중 실시간 배경색 업데이트
 
 ### 8.6 행 표현
 
@@ -672,10 +718,18 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 
 ### 8.9 선택과 우클릭
 
+#### 드래그 선택
+
 - 좌우 본문에서 마우스 드래그로 연속 줄 선택
-- 컨텍스트 메뉴:
-  - 왼쪽: `오른쪽으로 복사`, `라인 삭제`
-  - 오른쪽: `왼쪽으로 복사`, `라인 삭제`
+- 시작점부터 종료점까지 모든 줄 선택
+- 선택된 줄은 파란색 배경(`ARGB(120,80,140,240)`) 표시
+- `DiffLine` 클래스가 `INotifyPropertyChanged` 구현으로 선택 상태 실시간 반영
+
+#### 컨텍스트 메뉴
+
+- 우클릭 메뉴 표시
+  - 왼쪽: `→ 오른쪽으로 복사`, `라인 삭제`
+  - 오른쪽: `← 왼쪽으로 복사`, `라인 삭제`
 - 우클릭한 줄이 기존 선택 범위 밖이면 해당 줄을 단일 선택으로 만든다.
 
 ### 8.10 줄 복사
@@ -803,26 +857,38 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 
 ### 8.16 저장
 
+파일 비교창은 생성 시 선택 파일 경로뿐 아니라 폴더 비교창의 좌우 루트 폴더도 함께 받을 수 있다. 이 루트 폴더 정보는 한쪽 파일이 없는 상태에서 새 파일 경로를 만들 때 사용한다.
+
+공통 저장 규칙:
+
+- 저장은 `SaveFileWithPath` 흐름을 사용한다.
+- 대상 경로가 이미 있으면 그 경로에 `File.WriteAllLines`로 쓴다.
+- 대상 경로가 `null`이고 반대편 파일 경로, 대상 루트 폴더, 반대편 루트 폴더가 모두 있으면:
+  - 반대편 루트 기준 상대 경로를 계산한다.
+  - 대상 루트 아래 같은 상대 경로로 새 대상 경로를 만든다.
+  - 상위 디렉터리를 자동 생성한다.
+  - 새 파일을 쓴 뒤 대상 경로 필드를 갱신한다.
+- placeholder가 아닌 줄만 실제 파일에 쓴다.
+
 #### `Ctrl + S`
 
 - 좌우 모두 저장
-- placeholder가 아닌 줄만 실제 파일에 쓴다.
-- 한쪽 파일이 없는 경우 (Empty 상태):
-  - 다른 쪽 파일의 상대 경로를 기준으로 파일 경로 생성
-  - 필요하면 상위 디렉토리도 자동 생성
+- 한쪽 파일이 없는 경우 위 공통 규칙으로 새 파일 경로를 생성할 수 있다.
 - 저장 후 diff를 다시 계산한다.
 
 #### `Save Left`
 
 - 왼쪽만 저장
-- 왼쪽이 없으면 오른쪽 경로를 기준으로 생성
+- 왼쪽이 없으면 오른쪽 경로와 좌우 루트 폴더를 기준으로 생성
+- 생성 경로를 판단할 수 없으면 `Cannot determine path to save left file` 메시지 표시
 - 왼쪽 modified 플래그 해제
 - 저장 후 diff 재계산
 
 #### `Save Right`
 
 - 오른쪽만 저장
-- 오른쪽이 없으면 왼쪽 경로를 기준으로 생성
+- 오른쪽이 없으면 왼쪽 경로와 좌우 루트 폴더를 기준으로 생성
+- 생성 경로를 판단할 수 없으면 `Cannot determine path to save right file` 메시지 표시
 - 오른쪽 modified 플래그 해제
 - 저장 후 diff 재계산
 
@@ -841,9 +907,10 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 
 저장 후 또는 저장 없이 닫을 때:
 
-- Owner인 MainWindow로 신호 전달
-- MainWindow는 해당 2개 파일(LeftPath, RightPath)을 자동 선택
-- 자동으로 Compare_Click() 실행하여 파일 비교 갱신
+- 수정 상태였고 Owner가 `MainWindow`이면 `SelectAndCompareFiles(_leftPath, _rightPath)`를 호출한다.
+- `SelectAndCompareFiles`는 현재 플랫 목록에서 같은 좌우 경로의 항목을 찾아 좌우 그리드에 선택한다.
+- 이후 `Compare_Click()`을 비동기로 호출해 폴더 비교 결과를 다시 갱신한다.
+- 닫기 질문에서 `Cancel`을 선택하면 이 흐름은 실행하지 않는다.
 
 창이 닫히면:
 
@@ -917,21 +984,30 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 
 1. 파일 비교의 `Diff` 모드는 동일 행을 데이터에서 제거하지 않고 UI에서만 숨긴다.
 2. 삭제는 텍스트를 빈 문자열로 바꾸는 수준이 아니라 placeholder 처리까지 해야 실제 저장에서 줄이 빠진다.
-3. 날짜만 다른 파일은 `DateOnly`지만 상태 바의 수량은 `변경`에 포함한다.
-4. 폴더 상태는 하위 상태를 집계해 다시 정한다.
+3. 날짜만 다른 파일은 `DateOnly`이며 상태 바에서는 `날짜만` 수로 별도 표시한다.
+4. 폴더 상태는 자식 폴더가 이미 집계된 상태를 기준으로 직접 자식 목록을 한 번만 훑어 다시 정한다.
 5. 트리 선은 전체 원본이 아니라 현재 보이는 형제 순서를 기준으로 다시 계산한다.
-6. 탐색기 2개 선택 메뉴 이름은 현재 `-SMFolCmp`다.
-7. 다중 선택 직접 비교는 정확히 2개이며 같은 종류일 때만 바로 열린다.
-8. 파일 비교창은 한쪽 파일이 없을 때도 빈 파일과 비교하는 형태로 열릴 수 있다.
-9. 파일 비교창의 `Esc`는 단건 undo가 아니라 전체 변경 취소다.
-10. 폴더 목록의 양쪽 패널은 같은 flat list를 공유하므로 스크롤과 선택이 같은 행 기준으로 맞물린다.
-11. 폴더 비교창의 경로 텍스트박스는 현재 수동 입력을 실제 비교 경로로 반영하지 않는다.
-12. 파일 비교창의 `Diff` 모드에서 범위 선택은 숨겨진 equal 행을 내부적으로 포함할 수 있다.
-13. 파일 비교창의 Insert와 붙여넣기 추가 행은 저장 후 재비교 전까지 반대편 placeholder를 자동 생성하지 않는다.
-14. `Ctrl + Z`는 삽입 행 삭제 undo까지 완전하게 지원하지 않는다.
-15. 단일 파일 비교창 생성자에 한쪽 경로가 `null`로 들어와도 빈 파일과 비교하는 방식으로 열린다.
-16. 단일 파일 실행 흐름에서 `compare:`는 현재 path나 저장된 left 중 하나가 파일이면 `CompareWindow`를 고른다. 같은 종류만 엄격히 강제하는 것은 `--compare-selected` 경로다.
+6. 탐색기 단일 선택 메뉴는 `SMFolCmp with Left`와 `SMFolCmp and Compare` 두 개다.
+7. 탐색기 다중 선택 메뉴는 `-SMFolCmp` 하나이며 `--compare-selected "%1"` 명령을 사용한다.
+8. 다중 선택이 1개 경로만 전달되면 `PendingPath`와 `PendingTime`을 이용해 3초 윈도우 안에서 보완한다.
+9. 파일 비교창은 한쪽 파일이 없을 때도 빈 파일과 비교하는 형태로 열릴 수 있다.
+10. 파일 비교창의 `Esc`는 단건 undo가 아니라 전체 변경 취소다.
+11. 폴더 목록의 양쪽 패널은 같은 flat list를 공유하므로 스크롤과 선택이 같은 행 기준으로 맞물린다.
+12. 폴더 비교창의 경로 텍스트박스는 현재 수동 입력을 실제 비교 경로로 반영하지 않는다.
+13. 파일 비교창의 `Diff` 모드에서 범위 선택은 숨겨진 equal 행을 내부적으로 포함할 수 있다.
+14. 파일 비교창의 Insert와 붙여넣기 추가 행은 저장 후 재비교 전까지 반대편 placeholder를 자동 생성하지 않는다.
+15. `Ctrl + Z`는 삽입 행 삭제 undo까지 완전하게 지원하지 않는다.
+16. 단일 파일 비교창 생성자에 한쪽 경로가 `null`로 들어와도 빈 파일과 비교하는 방식으로 열린다.
 17. single-file publish 환경에서는 `Assembly.Location`이 비어 있을 수 있어, 폴더 비교창 제목의 날짜가 실제 빌드 날짜 대신 현재 날짜로 보일 수 있다.
+18. 복사/삭제 후 비교 재실행 시 이전 확장 상태를 저장했던 폴더들을 자동 복원한다.
+19. 폴더 비교는 메타데이터 기반 1차 결과를 먼저 보여주고, 같은 크기 파일의 실제 내용 비교는 2차로 수행한다.
+20. 2차 정밀 비교 중 중지하면 1차 빠른 비교 결과만 남길 수 있다.
+21. `Diff2`는 `DateOnly`를 차이에서 제외하고 내용 변경/좌우 전용만 보여준다.
+22. 파일/폴더 배제 패턴은 화면 표시용 필터이며 상태 카운트와 내부 비교 트리에는 계속 포함된다.
+23. 경로 영역 드래그 앤 드롭은 첫 번째 드롭 항목이 폴더일 때만 좌우 폴더로 반영한다.
+24. `DiffLine` 클래스는 `INotifyPropertyChanged` 구현으로 UI 바인딩 지원한다.
+25. 드래그 선택 중 마우스가 범위를 벗어나면 `OriginalBackground`로 선택을 복원한다.
+26. 파일 비교창의 수정 플래그는 좌우 중 하나라도 변경되면 양쪽 제목 모두에 `*` 표시한다.
 
 ## 13. 재구현 완료 판정 체크리스트
 
@@ -944,11 +1020,18 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 - [ ] 폴더 우선 정렬
 - [ ] 트리 확장/접기
 - [ ] 트리 연결선 정확성
-- [ ] All / Diff 필터
+- [ ] All / Diff / Diff2 필터
+- [ ] 파일/폴더 배제 패턴 저장 및 표시 필터
+- [ ] 경로 영역 폴더 드래그 앤 드롭
+- [ ] 좌우 폴더 Swap
+- [ ] 비교 중 Stop/F5 취소
+- [ ] 1차 메타데이터 비교와 2차 정밀 비교
 - [ ] 좌우 스크롤/선택 동기화
 - [ ] 드래그 범위 선택
-- [ ] 복사
-- [ ] 삭제
+- [ ] 복사 (확장 상태 보존)
+- [ ] 삭제 (확장 상태 보존)
+- [ ] 복사/삭제 후 UI 자동 새로고침
+- [ ] 확장된 폴더 경로 자동 복원
 - [ ] 파일 비교창 열기
 
 ### 13.2 파일 비교
@@ -957,8 +1040,11 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 - [ ] change/delete/insert/placeholder 정렬
 - [ ] 문자 단위 빨간 강조
 - [ ] All / Diff 필터 저장
-- [ ] 드래그 범위 선택
-- [ ] 좌우 복사
+- [ ] 드래그 범위 선택 (여러 줄 파란색 하이라이트)
+- [ ] DiffLine INotifyPropertyChanged 구현
+- [ ] 우클릭 컨텍스트 메뉴 (복사, 삭제)
+- [ ] 컨텍스트 메뉴 우클릭 시 자동 선택
+- [ ] 좌우 복사 (컨텍스트 메뉴)
 - [ ] Delete 줄 삭제
 - [ ] Insert 줄 삽입
 - [ ] Ctrl+C / Ctrl+V
@@ -969,12 +1055,20 @@ Left: <left-line-count> lines | Right: <right-line-count> lines | Differences: <
 - [ ] Esc 전체 취소
 - [ ] Ctrl+S 전체 저장
 - [ ] 좌/우 개별 저장
+- [ ] 한쪽 파일이 없을 때 반대편 상대 경로 기준 새 파일 저장
+- [ ] 파일 수정 표시 (제목에 *)
 - [ ] 닫기 전 저장 확인
+- [ ] 닫기 후 원본 폴더 비교창의 해당 파일 재선택 및 재비교
 
 ### 13.3 탐색기 연동
 
-- [ ] 1개 선택 시 `with Left`, `and Compare`
-- [ ] 2개 선택 시 `-SMFolCmp`
-- [ ] 파일/폴더 각각 동작
-- [ ] 등록 상태 판정
-- [ ] 등록 해제 시 레거시 키까지 제거
+- [ ] 폴더 1개 선택 시 `SMFolCmp with Left`, `SMFolCmp and Compare` 메뉴 표시
+- [ ] 파일 1개 선택 시 `SMFolCmp with Left`, `SMFolCmp and Compare` 메뉴 표시
+- [ ] 폴더 2개 선택 시 `-SMFolCmp` 메뉴 하나만 표시 후 자동 비교
+- [ ] 파일 2개 선택 시 `-SMFolCmp` 메뉴 하나만 표시 후 자동 비교
+- [ ] `left:"%1"`, `compare:"%1"`, `--compare-selected "%1"` 명령 처리
+- [ ] 2개 선택 전달이 1개씩 나뉠 때 `PendingPath`와 `PendingTime`으로 3초 이내 보완
+- [ ] 3초 초과 시 새로운 첫 번째 실행으로 처리
+- [ ] 다중 선택은 정확히 2개이고 같은 종류일 때만 바로 비교
+- [ ] 등록 상태 판정 (폴더/파일 단일 메뉴 4개 + 폴더/파일 다중 메뉴 2개)
+- [ ] 등록 해제 시 현재 키와 레거시 키까지 제거
