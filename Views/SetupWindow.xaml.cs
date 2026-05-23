@@ -6,6 +6,7 @@ namespace SMFolCmp.Views
 {
     public partial class SetupWindow : Window
     {
+        private static readonly string[] TextCompareExtensions = [".txt", ".html", ".htm", ".md", ".markdown"];
         private string _exePath;
 
         public SetupWindow(string? exePath = null)
@@ -34,9 +35,15 @@ namespace SMFolCmp.Views
                 var fileCompareKey = Registry.CurrentUser.OpenSubKey(@"Software\Classes\*\shell\SMFolCmpCompare");
                 var folderMultiCompareKey = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Directory\shell\SMFolCmpMultiCompare");
                 var fileMultiCompareKey = Registry.CurrentUser.OpenSubKey(@"Software\Classes\*\shell\SMFolCmpMultiCompare");
+                bool textExtensionKeysExist = TextCompareExtensions.All(ext =>
+                    Registry.CurrentUser.OpenSubKey($@"Software\Classes\SystemFileAssociations\{ext}\shell\SMFolCmpLeft") != null &&
+                    Registry.CurrentUser.OpenSubKey($@"Software\Classes\SystemFileAssociations\{ext}\shell\SMFolCmpCompare") != null &&
+                    Registry.CurrentUser.OpenSubKey($@"Software\Classes\SystemFileAssociations\{ext}\shell\SMFolCmpMultiCompare") != null);
+
                 return folderLeftKey != null && folderCompareKey != null &&
                        fileLeftKey != null && fileCompareKey != null &&
-                       folderMultiCompareKey != null && fileMultiCompareKey != null;
+                       folderMultiCompareKey != null && fileMultiCompareKey != null &&
+                       textExtensionKeysExist;
             }
             catch
             {
@@ -171,6 +178,13 @@ namespace SMFolCmp.Views
 
             RegisterMultiCompareVerb(@"Software\Classes\Directory\shell\SMFolCmpMultiCompare", icoPath);
             RegisterMultiCompareVerb(@"Software\Classes\*\shell\SMFolCmpMultiCompare", icoPath);
+
+            foreach (var extension in TextCompareExtensions)
+            {
+                RegisterSingleFileVerb($@"Software\Classes\SystemFileAssociations\{extension}\shell\SMFolCmpLeft", "SMFolCmp with Left", "left", icoPath);
+                RegisterSingleFileVerb($@"Software\Classes\SystemFileAssociations\{extension}\shell\SMFolCmpCompare", "SMFolCmp and Compare", "compare", icoPath);
+                RegisterMultiCompareVerb($@"Software\Classes\SystemFileAssociations\{extension}\shell\SMFolCmpMultiCompare", icoPath);
+            }
         }
 
         private void UnregisterContextMenu()
@@ -207,6 +221,34 @@ namespace SMFolCmp.Views
             try { Registry.CurrentUser.DeleteSubKeyTree(@"Software\Classes\*\shell\SMFolCmpMultiCompare", false); }
             catch (ArgumentException) { }
 
+            foreach (var extension in TextCompareExtensions)
+            {
+                try { Registry.CurrentUser.DeleteSubKeyTree($@"Software\Classes\SystemFileAssociations\{extension}\shell\SMFolCmpLeft", false); }
+                catch (ArgumentException) { }
+
+                try { Registry.CurrentUser.DeleteSubKeyTree($@"Software\Classes\SystemFileAssociations\{extension}\shell\SMFolCmpCompare", false); }
+                catch (ArgumentException) { }
+
+                try { Registry.CurrentUser.DeleteSubKeyTree($@"Software\Classes\SystemFileAssociations\{extension}\shell\SMFolCmpMultiCompare", false); }
+                catch (ArgumentException) { }
+            }
+
+        }
+
+        private void RegisterSingleFileVerb(string keyPath, string label, string mode, string icoPath)
+        {
+            using (var key = Registry.CurrentUser.CreateSubKey(keyPath))
+            {
+                key?.SetValue("", label);
+                key?.SetValue("MultiSelectModel", "Single");
+                if (System.IO.File.Exists(icoPath)) key?.SetValue("Icon", icoPath);
+                else key?.SetValue("Icon", _exePath);
+            }
+
+            using (var key = Registry.CurrentUser.CreateSubKey(keyPath + @"\command"))
+            {
+                key?.SetValue("", $"\"{_exePath}\" {mode}:\"%1\"");
+            }
         }
 
         private void RegisterMultiCompareVerb(string keyPath, string icoPath)

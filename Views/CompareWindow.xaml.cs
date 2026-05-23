@@ -324,9 +324,34 @@ namespace SMFolCmp.Views
         private List<string> LoadFile(string? p)
         {
             if (p == null || !File.Exists(p)) return new();
-            var content = File.ReadAllText(p);
-            content = content.Replace("\r\n", "\n");
-            return content.Split('\n').ToList();
+
+            try
+            {
+                string content;
+                try
+                {
+                    content = File.ReadAllText(p, System.Text.Encoding.UTF8);
+                }
+                catch
+                {
+                    try
+                    {
+                        content = File.ReadAllText(p, System.Text.Encoding.Default);
+                    }
+                    catch
+                    {
+                        content = File.ReadAllText(p, System.Text.Encoding.GetEncoding(1252));
+                    }
+                }
+
+                content = content.Replace("\r\n", "\n");
+                return content.Split('\n').ToList();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to load file '{p}':\n{ex.Message}");
+                return new();
+            }
         }
 
         // 라인을 diff 컬렉션에 추가 (System.Collections.ObjectModel)

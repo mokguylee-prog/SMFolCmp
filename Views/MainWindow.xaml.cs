@@ -9,8 +9,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using SMFolCmp.Models;
+using SMFolCmp.Services.Config;
 using Ookii.Dialogs.Wpf;
-using Microsoft.Win32;
 
 namespace SMFolCmp.Views
 {
@@ -26,7 +26,7 @@ namespace SMFolCmp.Views
         private string _excludeFolderPatterns = "";
         private List<string> _filePatternsList = new();
         private List<string> _folderPatternsList = new();
-        private const string REG_PATH = @"Software\SMFolCmp";
+        private readonly ConfigurationService _configService = new();
         private bool _isSyncingScroll = false;
         private bool _isSyncingSelection = false;
         private ListBox? _lastFocusedGrid;
@@ -82,71 +82,42 @@ namespace SMFolCmp.Views
         // 레지스트리에서 저장된 설정 로드 (폴더 경로, 제외 패턴)
         private void LoadConfig()
         {
-            string leftFolder = GetRegValue("LeftFolder", "");
-            string rightFolder = GetRegValue("RightFolder", "");
-            string excludeFilePatterns = GetRegValue("ExcludeFilePatterns", "");
-            string excludeFolderPatterns = GetRegValue("ExcludeFolderPatterns", "");
+            var cfg = _configService.LoadMainWindowConfig();
 
-            if (!string.IsNullOrEmpty(leftFolder) && Directory.Exists(leftFolder))
+            if (!string.IsNullOrEmpty(cfg.LeftFolder) && Directory.Exists(cfg.LeftFolder))
             {
-                _leftFolder = leftFolder;
-                LeftPathBox.Text = leftFolder;
+                _leftFolder = cfg.LeftFolder;
+                LeftPathBox.Text = cfg.LeftFolder;
                 LeftPathBox.Foreground = System.Windows.Media.Brushes.White;
             }
 
-            if (!string.IsNullOrEmpty(rightFolder) && Directory.Exists(rightFolder))
+            if (!string.IsNullOrEmpty(cfg.RightFolder) && Directory.Exists(cfg.RightFolder))
             {
-                _rightFolder = rightFolder;
-                RightPathBox.Text = rightFolder;
+                _rightFolder = cfg.RightFolder;
+                RightPathBox.Text = cfg.RightFolder;
                 RightPathBox.Foreground = System.Windows.Media.Brushes.White;
             }
 
-            _excludeFilePatterns = excludeFilePatterns;
-            _excludeFolderPatterns = excludeFolderPatterns;
-            ExcludeFilePatternsBox.Text = excludeFilePatterns;
-            ExcludeFolderPatternsBox.Text = excludeFolderPatterns;
+            _excludeFilePatterns = cfg.ExcludeFilePatterns;
+            _excludeFolderPatterns = cfg.ExcludeFolderPatterns;
+            ExcludeFilePatternsBox.Text = cfg.ExcludeFilePatterns;
+            ExcludeFolderPatternsBox.Text = cfg.ExcludeFolderPatterns;
             ParsePatterns();
         }
 
-        // 현재 설정을 레지스트리에 저장 (System.Windows.Input)
+        // 현재 설정을 레지스트리에 저장
         private void SaveConfig()
         {
-            SetRegValue("LeftFolder", _leftFolder ?? "");
-            SetRegValue("RightFolder", _rightFolder ?? "");
-            SetRegValue("ExcludeFilePatterns", _excludeFilePatterns ?? "");
-            SetRegValue("ExcludeFolderPatterns", _excludeFolderPatterns ?? "");
+            _configService.SaveMainWindowConfig(new MainWindowConfig
+            {
+                LeftFolder = _leftFolder ?? "",
+                RightFolder = _rightFolder ?? "",
+                ExcludeFilePatterns = _excludeFilePatterns ?? "",
+                ExcludeFolderPatterns = _excludeFolderPatterns ?? ""
+            });
         }
 
-        // 레지스트리에서 값 읽기 (Microsoft.Win32)
-        private string GetRegValue(string valueName, string defaultValue = "")
-        {
-            try
-            {
-                using (var key = Registry.CurrentUser.OpenSubKey(REG_PATH))
-                {
-                    return key?.GetValue(valueName) as string ?? defaultValue;
-                }
-            }
-            catch
-            {
-                return defaultValue;
-            }
-        }
-
-        // 레지스트리에 값 저장 (Microsoft.Win32)
-        private void SetRegValue(string valueName, string value)
-        {
-            try
-            {
-                using (var key = Registry.CurrentUser.CreateSubKey(REG_PATH))
-                {
-                    key?.SetValue(valueName, value);
-                }
-            }
-            catch { }
-        }
-
-        // 왼쪽 폴더 경로 설정하고 저장
+// 왼쪽 폴더 경로 설정하고 저장
         private void SetLeftFolder(string folder)
         {
             _leftFolder = folder;
